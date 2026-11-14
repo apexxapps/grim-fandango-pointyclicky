@@ -1188,3 +1188,19 @@ Head_Control = function()
         NoticeHotspot(hot_object.hotspot_id)
     end
 end
+-- PointyClicky Edition (14 Nov 2026): the inventory is Manny's own coat, the
+-- 1998 close-up (Simon: "the coat, 100%"), never Grim Mouse's grid. Grim
+-- Mouse's patched _inventory.lua opens and closes the inventory through these
+-- three; pointing them back at the game's own coat routines brings the coat
+-- back, and keeps every fix that patch carries. The original's keys drive it
+-- (the arrows, U, E, Esc): the engine turns taps into them (HotspotMan).
+suitInventoryButtonHandler2 = suitInventoryButtonHandler
+Inventory.setup_draw = function(arg1)
+    Inventory:switch_to_set()
+end
+Inventory.unload_inventory = function(arg1)
+    mannys_hands:wait_for_chore()
+    Inventory:return_to_set()
+    inventory_save_set:current_setup(inventory_save_setup)
+    manny:setpos(inventory_save_pos)
+end
