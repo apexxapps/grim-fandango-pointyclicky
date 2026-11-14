@@ -81,6 +81,9 @@ it, and every exit. That's the one picture where a gap can't hide.
    - Two-finger tap = Examine (`lookAt`).
    - **Manny is the coat:** tap Manny to open his inventory, as reaching for
      I did. With an item in hand, tap Manny to put it back (the original's P).
+   - **No verb menu** (Simon, 14 Nov 2026, over the Remaster's "verb skull",
+     a Look/Use/Pick up pop-up on every click): one tap, one meaning, no
+     menu over the scene, ever.
    - **The 38**: each is checked in the game's scripts and in the playthrough.
      Where Pick up is needed to finish or is a line worth hearing, it gets a
      reachable form. The list is the answer key's, not a guess.
