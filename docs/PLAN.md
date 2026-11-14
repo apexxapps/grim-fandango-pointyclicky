@@ -103,6 +103,11 @@ it, and every exit. That's the one picture where a gap can't hide.
    "show everything". Manny's head turns to things as he passes, as the game
    always did, and the pointer over a thing also turns his head to it
    (`head_look_at`, the game's own), so finding things is still his to show.
+   **The pointer chooses; Manny's head shows** (Simon, 14 Nov 2026). Over a
+   thing: he looks at it, the cursor goes marigold, a tap acts on it; head,
+   cursor and tap always agree. Over nothing: the cursor stays bone-white, a
+   tap walks, and he may still glance at things he passes as in 1998 (a hint
+   to go and point, never a target).
 6. **Old saves: not needed.** No one has played Grim in the app yet, so the
    edition is the only way Grim has ever played in PointyClicky.
 
