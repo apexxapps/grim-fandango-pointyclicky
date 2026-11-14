@@ -97,7 +97,9 @@ it, and every exit. That's the one picture where a gap can't hide.
 3. **The inventory: Manny's coat, 100%.** The original's own one-at-a-time
    reveal, driven by the pointer.
 4. **Running: double tap.**
-5. **Discovery is Manny's head, as in 1998.** Nothing flashes, and no
+5. **Discovery is Manny's head, as in 1998. No text labels, ever** (Simon,
+   14 Nov 2026, after the proof of concept: "that's how the game was
+   designed and it had charm"). Nothing flashes, and no
    "show everything". Manny's head turns to things as he passes, as the game
    always did, and the pointer over a thing also turns his head to it
    (`head_look_at`, the game's own), so finding things is still his to show.
