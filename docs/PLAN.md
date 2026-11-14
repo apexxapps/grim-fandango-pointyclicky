@@ -87,13 +87,17 @@ it, and every exit. That's the one picture where a gap can't hide.
    - **The 38**: each is checked in the game's scripts and in the playthrough.
      Where Pick up is needed to finish or is a line worth hearing, it gets a
      reachable form. The list is the answer key's, not a guess.
-2. **The cursor: follow the Remaster's theme**, drawn our own way (none of
+2. **The cursor: settled (Simon, 14 Nov 2026, on his phone: "pixel size looks
+   about right").** His bone crosshair, 26 px, no centre dot, in Manny's own
+   bone colours (m_bone/m_jaw through suit.cmp), drawn by `tools/cursors.py`:
+   bone at rest, marigold over something Manny has noticed, nothing in
+   cut-scenes. (Earlier: follow the Remaster's theme, drawn our own way (none of
    Double Fine's art). The Remaster's family (looked at 14 Nov 2026): a
    thin crosshair at rest, a starburst over a thing, a ring of dots while
    the game is busy, four block arrows for exits (each hotspot names its
    direction), and a dimmed crosshair when nothing can be done. Flat:
    white outline on black. Ours keeps those roles and that restraint, drawn
-   in pixels for 640x480.
+   in pixels for 640x480.)
 3. **The inventory: Manny's coat, 100%.** The original's own one-at-a-time
    reveal, driven by the pointer.
 4. **Running: double tap.**
