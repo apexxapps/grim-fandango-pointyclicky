@@ -65,25 +65,34 @@ it, and every exit. That's the one picture where a gap can't hide.
 
 ---
 
-## Phase 1: the decisions (Simon, once)
+## Phase 1: the decisions (Simon, 14 Nov 2026)
 
-Only things the game can't answer, settled before any building:
-
-1. **Tap on a thing**: the game's `use`, and `pickUp` where the object has
-   one and no `use`? (The answer key lists every object with both, so the
-   rule is checked, not guessed.)
-2. **The cursor**: one pointer that changes over a thing, an exit or an item
-   in hand, in Grim's art deco.
-3. **The inventory**: Manny's own coat (the original's one-at-a-time
-   reveal) or a grid. The coat is the "released this way" choice.
-4. **Running**: double tap to run (Grim Mouse), or none.
-5. **Hints for what's there**: none by default, like 1998. A hold shows
-   every live thing (the game's own list, law 3)?
-6. **Old saves**: players have had Grim since 1.3.0 in tank mode. Either
-   carry a save across (load it, then run the edition's scripts into its
-   state) or offer a fresh start. We'll test carrying it across first.
-
----
+1. **The verbs: closest to the original.** The original has three: Use (U),
+   Pick up (P, also puts an item back in the coat) and Examine (E). The
+   answer key says how often they really differ. Of the objects with both
+   Use and Pick up, 114 run the same code for both, and on 112 more Pick up
+   is only a remark ("I don't need that"). On 4, Use is only a remark and
+   Pick up acts. Only **38** run genuinely different code for the two.
+   - Tap = the object's action: its `use`, or its `pickUp` where `use` is
+     only a remark. On a door, `walkOut`. With an item in hand, `use` with
+     that item, as the original's U does.
+   - Two-finger tap = Examine (`lookAt`).
+   - **Manny is the coat:** tap Manny to open his inventory, as reaching for
+     I did. With an item in hand, tap Manny to put it back (the original's P).
+   - **The 38**: each is checked in the game's scripts and in the playthrough.
+     Where Pick up is needed to finish or is a line worth hearing, it gets a
+     reachable form. The list is the answer key's, not a guess.
+2. **The cursor: follow the Remaster's theme**, drawn our own way (none of
+   Double Fine's art). First we look at the Remaster itself.
+3. **The inventory: Manny's coat, 100%.** The original's own one-at-a-time
+   reveal, driven by the pointer.
+4. **Running: double tap.**
+5. **Discovery is Manny's head, as in 1998.** Nothing flashes, and no
+   "show everything". Manny's head turns to things as he passes, as the game
+   always did, and the pointer over a thing also turns his head to it
+   (`head_look_at`, the game's own), so finding things is still his to show.
+6. **Old saves: not needed.** No one has played Grim in the app yet, so the
+   edition is the only way Grim has ever played in PointyClicky.
 
 ## Phase 2: the engine (built once, true for every scene)
 
