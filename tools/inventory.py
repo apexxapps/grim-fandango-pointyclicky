@@ -30,6 +30,10 @@ Objects created at 0,0,0 with range 0 are inventory or script-only things
 import json
 import math
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import grimfiles  # noqa: E402
+import os
 import re
 import struct
 import subprocess
@@ -87,6 +91,8 @@ def setups(path):
             cur[tok[0]] = [float(t) for t in tok[1:4]]
         elif cur is not None and tok[0] in ('roll', 'fov'):
             cur[tok[0]] = float(tok[1])
+        elif cur is not None and tok[0] == 'zbuffer':
+            cur['zbuffer'] = tok[1]
     return [s for s in out if 'position' in s and 'interest' in s and 'fov' in s]
 
 
@@ -216,7 +222,32 @@ def distance(pt, poly):
 
 # MARK: The audit
 
-def audit(raw, dec):
+def hidden(game, setup, p, pt, cache={}):
+    """True when the angle's depth image puts something in front of the
+    object's point (checked over a 9x9 pixel patch: thin things count)."""
+    name = setup.get('zbuffer')
+    if not name or not game:
+        return False
+    if name not in cache:
+        try:
+            cache[name] = grimfiles.bitmap(game.read(name))
+        except Exception:
+            cache[name] = None
+    if not cache[name]:
+        return False
+    w, h, z = cache[name]
+    f = norm(sub(setup['interest'], setup['position']))
+    d = dot(f, sub(p, setup['position']))
+    tol = max(0.3, 0.15 * d)
+    for dy in range(-4, 5, 2):
+        for dx in range(-4, 5, 2):
+            x, y = int(pt[0]) + dx, int(pt[1]) + dy
+            if 0 <= x < w and 0 <= y < h and grimfiles.zdepth(z[y * w + x]) >= d - tol:
+                return False
+    return True
+
+
+def audit(raw, dec, game=None):
     objs = objects(dec)
     report = {}
     for name in sorted(os.listdir(raw)):
@@ -239,6 +270,9 @@ def audit(raw, dec):
             for key, o in sorted(placed.items()):
                 pt = project(su, o['pos'])
                 if not pt:
+                    continue
+                if hidden(game, su, o['pos'], pt):
+                    r.setdefault('hidden', []).append({'setup': i, 'object': key})
                     continue
                 mine_h = [h for h in here if h['id'] == o['id']] if o['id'] else []
                 if not mine_h:
@@ -266,7 +300,7 @@ def main():
     raw, dec = os.path.join(out, 'raw'), os.path.join(out, 'lua')
     extract(game, raw)
     decompile(raw, delua, dec)
-    report = audit(raw, dec)
+    report = audit(raw, dec, grimfiles.Game(game))
     json.dump(report, open(os.path.join(out, 'inventory.json'), 'w'), indent=1)
     tot = {k: sum(len(r[k]) if isinstance(r[k], list) else r[k] for r in report.values())
            for k in ('objects', 'hotspots', 'missing', 'off', 'stray')}
