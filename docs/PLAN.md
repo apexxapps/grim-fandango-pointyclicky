@@ -85,7 +85,12 @@ it, and every exit. That's the one picture where a gap can't hide.
      Where Pick up is needed to finish or is a line worth hearing, it gets a
      reachable form. The list is the answer key's, not a guess.
 2. **The cursor: follow the Remaster's theme**, drawn our own way (none of
-   Double Fine's art). First we look at the Remaster itself.
+   Double Fine's art). The Remaster's family (looked at 14 Nov 2026): a
+   thin crosshair at rest, a starburst over a thing, a ring of dots while
+   the game is busy, four block arrows for exits (each hotspot names its
+   direction), and a dimmed crosshair when nothing can be done. Flat:
+   white outline on black. Ours keeps those roles and that restraint, drawn
+   in pixels for 640x480.
 3. **The inventory: Manny's coat, 100%.** The original's own one-at-a-time
    reveal, driven by the pointer.
 4. **Running: double tap.**
@@ -160,4 +165,4 @@ point where you want to go or what you want to work, and click.
 | The game's own files (player's copy) | everything in the answer key, at build and run time | never copied into the repo |
 | Grim Mouse (GPL) | engine code, outlines that pass the audit, script patches, the special-moment work | anything the audit or the laws reject |
 | ScummVM (GPL) | the Grim engine, `grim-patch.lab` fixes | |
-| Grim Fandango Remastered | a reference only: how Double Fine solved a moment | none of its data or scripts (Double Fine's copyright) |
+| Grim Fandango Remastered | a reference only: how Double Fine solved a moment, its cursor roles, and where it corrected Grim Mouse's outlines (its 117 `.hot` files descend from Grim Mouse's: 557 hotspots identical, 211 reshaped, 40 added, 37 removed, across 102 sets), which marks places our audit should look hardest | none of its data, scripts or art (Double Fine's copyright) |
