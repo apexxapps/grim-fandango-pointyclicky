@@ -1,5 +1,7 @@
 # Grim Fandango: PointyClicky Edition
 
+**The afterlife. Finally on point.**
+
 Grim Fandango, played by pointing and clicking: no tank controls. Point at
 something and Manny walks there and deals with it; click elsewhere and he
 walks there. It plays the whole game, start to finish, the way the other

@@ -1,5 +1,7 @@
 # Grim Fandango: PointyClicky Edition — the plan
 
+*The afterlife. Finally on point.* (Simon, 14 Nov 2026)
+
 **The mission.** Grim Fandango, start to credits, by pointing and clicking, so
 that it feels as if LucasArts released it this way in 1998.
 
