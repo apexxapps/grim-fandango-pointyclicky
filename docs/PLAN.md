@@ -104,6 +104,13 @@ it, and every exit. That's the one picture where a gap can't hide.
 6. **Old saves: not needed.** No one has played Grim in the app yet, so the
    edition is the only way Grim has ever played in PointyClicky.
 
+## Proof of concept (Simon, 14 Nov 2026, on his phone)
+
+Grim Mouse's port with a first cut of our cursors, on the software renderer:
+**"this is 100% the way to play."** How it works is right. What isn't: the
+look of the cursors and icons, and the text (Grim Mouse's hover names in the
+emergency font). Those are ours to design (phase 2 and the decisions above).
+
 ## Phase 2: the engine (built once, true for every scene)
 
 - **The live list.** Each frame, the candidates under the pointer are the
