@@ -1,0 +1,155 @@
+diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
+--- a/engines/grim/hotspotman.cpp
++++ b/engines/grim/hotspotman.cpp
+@@ -589,7 +589,10 @@
+ 			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
+ 				if (type >= 10)
+ 					continue;
+-				cursor->setCursor((type == 2 || type == 3) ? 2 : 1);
++				// Manny finds, the cursor confirms (Simon, 14 Nov 2026): lit only
++				// over a thing his head has turned to; walking areas stay at rest.
++				bool noticed = oid > 0 && oid < (int)_hotobject.size() && _hotobject[oid]._noticed;
++				cursor->setCursor((type == 1 || type == 2) && noticed ? 1 : 0);
+ 				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
+ 				_hoverName = (desc == "_") ? Common::String() : desc;
+ 			} else if (_ctrlMode == Dialog) {
+@@ -758,6 +761,16 @@
+ 		}
+ 	}
+ 	savedState->endSection();
++	if (savedState->hasSection('HNOT')) {
++		savedState->beginSection('HNOT');
++		int n = savedState->readLESint32();
++		for (int i = 0; i < n; i++) {
++			int id = savedState->readLESint32();
++			if (id >= 0 && id < (int)_hotobject.size())
++				_hotobject[id]._noticed = true;
++		}
++		savedState->endSection();
++	}
+ 	_icons.clear();
+ 	_activeHS = nullptr;
+ 	loadFlashBitmaps();
+@@ -812,6 +825,16 @@
+ 		}
+ 	}
+ 	savedState->endSection();
++	// What Manny has noticed, in a section of its own (PointyClicky Edition).
++	savedState->beginSection('HNOT');
++	int noticed = 0;
++	for (uint i = 0; i < _hotobject.size(); i++)
++		noticed += _hotobject[i]._noticed ? 1 : 0;
++	savedState->writeLESint32(noticed);
++	for (uint i = 0; i < _hotobject.size(); i++)
++		if (_hotobject[i]._noticed)
++			savedState->writeLESint32(i);
++	savedState->endSection();
+ }
+ 
+ int HotspotMan::inBox(const Common::Point &p) {
+diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
+--- a/engines/grim/hotspotman.h
++++ b/engines/grim/hotspotman.h
+@@ -61,6 +61,9 @@
+ 	Math::Vector3d _pos;
+ 	Common::Rect _rect;
+ 	bool _active;
++	// PointyClicky Edition: Manny's head has turned to it (the game's own
++	// hot_object), so the cursor confirms it. For good in a playthrough.
++	bool _noticed = false;
+ };
+ 
+ struct MouseHotspot {
+diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
+--- a/engines/grim/lua_v1_mouse.cpp
++++ b/engines/grim/lua_v1_mouse.cpp
+@@ -59,6 +59,16 @@
+ 	lua_pushnumber(n);
+ }
+ 
++// PointyClicky Edition: NoticeHotspot(id), called by mouse.lua each time the
++// game's Head_Control turns Manny's head to an object (hot_object).
++void Lua_V1::NoticeHotspot() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	if (HotObject *hs = hm->getObject((int)lua_getnumber(lua_getparam(1))))
++		hs->_noticed = true;
++}
++
+ void Lua_V1::ActivateHotspot() {
+ 	HotspotMan *hm = hotspots();
+ 	if (!hm)
+diff --git a/engines/grim/lua_v1.h b/engines/grim/lua_v1.h
+--- a/engines/grim/lua_v1.h
++++ b/engines/grim/lua_v1.h
+@@ -289,6 +289,7 @@
+ 	// Grim Mouse (lua_v1_mouse.cpp)
+ 	DECLARE_LUA_OPCODE(RegisterHotspot);
+ 	DECLARE_LUA_OPCODE(ActivateHotspot);
++	DECLARE_LUA_OPCODE(NoticeHotspot);
+ 	DECLARE_LUA_OPCODE(MouseUpdateHotspot);
+ 	DECLARE_LUA_OPCODE(SwitchControlMode);
+ 	DECLARE_LUA_OPCODE(NotifyWalk);
+diff --git a/engines/grim/lua_v1.cpp b/engines/grim/lua_v1.cpp
+--- a/engines/grim/lua_v1.cpp
++++ b/engines/grim/lua_v1.cpp
+@@ -1027,6 +1027,7 @@
+ 	// Grim Mouse (lua_v1_mouse.cpp)
+ 	{ "RegisterHotspot", LUA_OPCODE(Lua_V1, RegisterHotspot) },
+ 	{ "ActivateHotspot", LUA_OPCODE(Lua_V1, ActivateHotspot) },
++	{ "NoticeHotspot", LUA_OPCODE(Lua_V1, NoticeHotspot) },
+ 	{ "UpdateHotspot", LUA_OPCODE(Lua_V1, MouseUpdateHotspot) },
+ 	{ "SwitchControlMode", LUA_OPCODE(Lua_V1, SwitchControlMode) },
+ 	{ "NotifyWalk", LUA_OPCODE(Lua_V1, NotifyWalk) },
+diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
+--- a/engines/grim/grim.cpp
++++ b/engines/grim/grim.cpp
+@@ -998,8 +998,9 @@
+ }
+ 
+ // Grim Mouse: pointer and buttons. Returns true when the event was used.
+-// Left: walk / use (twice within 500 ms: run), right: look, middle (or a right
+-// click on Manny himself, for hosts with two buttons): the inventory.
++// Left: walk / use (twice within 500 ms: run), right: look, middle (or a tap
++// on Manny himself, for hosts with two buttons): the inventory; with something
++// in hand, a tap on Manny puts it away (PointyClicky Edition).
+ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+ 	if (!_hotspotManager || _mode == SmushMode)
+ 		return false;
+@@ -1022,7 +1023,10 @@
+ 	}
+ 	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
+ 	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
+-	if (type == Common::EVENT_RBUTTONDOWN && _hotspotManager->getCtrlMode() == HotspotMan::Normal &&
++	bool putAway = false;
++	// PointyClicky Edition (Simon, 14 Nov 2026): a tap on Manny is his coat, as I
++	// was; with something in hand, it goes back in the coat, as P did.
++	if (type == Common::EVENT_LBUTTONDOWN && _hotspotManager->getCtrlMode() == HotspotMan::Normal &&
+ 	    !_hotspotManager->isDialog()) {
+ 		// On Manny (he stands in front of whatever is behind him): from his
+ 		// feet to the top of his head on screen, a quarter of that either side.
+@@ -1031,9 +1035,21 @@
+ 		if (feet.x || feet.y) {
+ 			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
+ 			int cx = (feet.x + head.x) / 2;
+-			inventory = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
+-			debug(1, "Grim Mouse: right click %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y, inventory ? ": inventory" : "");
++			bool onManny = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
++			if (onManny) {
++				putAway = LuaBase::instance()->queryVariable("(system.currentActor.is_holding ~= nil)", false) > 0;
++				inventory = !putAway;
++			}
++			debug(1, "Grim Mouse: tap %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y,
++			      putAway ? ": put away" : inventory ? ": coat" : "");
+ 		}
++	}
++	if (putAway) {
++		Common::KeyState kbd(Common::KEYCODE_p, 'p');
++		handleChars(Common::EVENT_KEYDOWN, kbd);
++		handleControls(Common::EVENT_KEYDOWN, kbd);
++		handleControls(Common::EVENT_KEYUP, kbd);
++		return true;
+ 	}
+ 	if (inventory) {
+ 		Common::KeyState kbd(Common::KEYCODE_i, 'i');

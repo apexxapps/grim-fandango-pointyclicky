@@ -1176,3 +1176,15 @@ end
 wc.forkdrive.pickUp = function(arg1) -- line 1176
     manny:say_line("/wcma008/")
 end
+-- PointyClicky Edition (14 Nov 2026): Manny finds, the cursor confirms.
+-- Every frame the game's own Head_Control picks hot_object, the thing
+-- Manny's head turns to (_system.lua: within reach, nearest in angle). Each
+-- one he turns to is noticed, for good in this playthrough (the engine keeps
+-- it in the save), and only noticed things light the cursor.
+pc_Head_Control = Head_Control
+Head_Control = function()
+    pc_Head_Control()
+    if hot_object and hot_object.hotspot_id then
+        NoticeHotspot(hot_object.hotspot_id)
+    end
+end
