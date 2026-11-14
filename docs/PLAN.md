@@ -147,6 +147,12 @@ emergency font). Those are ours to design (phase 2 and the decisions above).
 - **The app drops tank controls**: the joystick, the steering switch and
   Grim's own gesture set go. Grim plays through the trackpad like the rest.
 
+- **Saves carry the scripts** (found 14 Nov 2026): Grim saves its whole Lua
+  state, functions included, so a save made before a fix to the edition's
+  scripts brings the old ones back. On every load the engine must run the
+  edition's script again (mouse.lua, written so a second run is harmless), so
+  an update reaches saves made before it.
+
 ## Phase 3: the data (every scene, measured)
 
 - Outlines for every object on every play angle. Each is seeded from the
