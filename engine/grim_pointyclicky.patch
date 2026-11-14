@@ -1,0 +1,2406 @@
+diff --git a/engines/grim/actor.cpp b/engines/grim/actor.cpp
+--- a/engines/grim/actor.cpp
++++ b/engines/grim/actor.cpp
+@@ -501,8 +501,9 @@
+ 	_turning = false;
+ }
+ 
+-void Actor::setPos(const Math::Vector3d &position) {
+-	_walking = false;
++void Actor::setPos(const Math::Vector3d &position, bool keepWalking) {
++	if (!keepWalking)
++		_walking = false;
+ 	_pos = position;
+ 
+ 	// Don't allow positions outside the sectors.
+@@ -544,7 +545,7 @@
+ 	}
+ 
+ 	Math::Matrix3 m;
+-	m.buildFromTargetDir(actorForward, lookVector, actorUp, up);
++	m.buildFromTargetDir(actorForward, _walkBwd ? -lookVector : lookVector, actorUp, up);
+ 
+ 	if (_puckOrient) {
+ 		m.getEuler(yaw, pitch, roll, Math::EO_ZXY);
+@@ -588,7 +589,7 @@
+ 		_turning = false;
+ }
+ 
+-void Actor::walkTo(const Math::Vector3d &p) {
++void Actor::walkTo(const Math::Vector3d &p, bool force) {
+ 	if (p == _pos)
+ 		_walking = false;
+ 	else {
+@@ -739,6 +740,10 @@
+ 			if (!pathFound) {
+ 				warning("Actor::walkTo(): No path found for %s", _name.c_str());
+ 				if (g_grim->getGameType() == GType_MONKEY4) {
++					_walking = false;
++					return;
++				}
++				if (!force && getName() == "Manny") {
+ 					_walking = false;
+ 					return;
+ 				}
+diff --git a/engines/grim/actor.h b/engines/grim/actor.h
+--- a/engines/grim/actor.h
++++ b/engines/grim/actor.h
+@@ -147,7 +147,7 @@
+ 	 * @param position The position.
+ 	 * @see getPos
+ 	 */
+-	void setPos(const Math::Vector3d &position);
++	void setPos(const Math::Vector3d &position, bool keepWalking = false);
+ 	/**
+ 	 * Returns the position of the actor on the 3D scene.
+ 	 *
+@@ -165,7 +165,9 @@
+ 	 * @see stopWalking
+ 	 * @see isWalking
+ 	 */
+-	void walkTo(const Math::Vector3d &position);
++	void walkTo(const Math::Vector3d &position, bool force = true);
++	/** Grim Mouse: walk facing away from the direction of travel. */
++	void setWalkBwd(bool bwd) { _walkBwd = bwd; }
+ 	/**
+ 	 * Stops immediately the actor's walk.
+ 	 *
+@@ -604,6 +606,7 @@
+ 	Math::Angle _pitch, _yaw, _roll;
+ 	float _walkRate, _turnRate;
+ 
++	bool _walkBwd = false;
+ 	bool _followBoxes;  // Constrain to walkboxes
+ 	bool _hasFollowedBoxes;
+ 	float _reflectionAngle; // Maximum angle to turn by at walls
+diff --git a/engines/grim/costume/chore.cpp b/engines/grim/costume/chore.cpp
+--- a/engines/grim/costume/chore.cpp
++++ b/engines/grim/costume/chore.cpp
+@@ -19,6 +19,7 @@
+  *
+  */
+ 
++#include "engines/grim/grim.h"
+ #include "engines/grim/costume.h"
+ #include "engines/grim/savegame.h"
+ #include "engines/grim/textsplit.h"
+@@ -193,6 +194,12 @@
+ }
+ 
+ void Chore::fadeIn(uint msecs) {
++	// Grim Mouse's patched costumes fade in chores that aren't playing yet
++	if (g_grim->isGrimMouse() && !_playing) {
++		_playing = true;
++		_hasPlayed = true;
++		_currTime = -1;
++	}
+ 	fade(Animation::FadeIn, msecs);
+ }
+ 
+diff --git a/engines/grim/cursor.cpp b/engines/grim/cursor.cpp
+new file mode 100644
+--- /dev/null
++++ b/engines/grim/cursor.cpp
+@@ -0,0 +1,147 @@
++/* ScummVM - Graphic Adventure Engine
++ *
++ * ScummVM is the legal property of its developers, whose names
++ * are too numerous to list here. Please refer to the COPYRIGHT
++ * file distributed with this source distribution.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
++ *
++ */
++
++#include "common/archive.h"
++#include "common/system.h"
++#include "graphics/cursorman.h"
++
++#include "engines/grim/cursor.h"
++#include "engines/grim/bitmap.h"
++#include "engines/grim/gfx_base.h"
++
++namespace Grim {
++
++// 0 pointer, 1 object, 2 exit, 3-6 the special modes' arrows, 7 busy (cutscene)
++static const int kNumCursors = 8;
++
++CursorData::CursorData(const Common::String &name) :
++	_anim(nullptr), _frameTick(0), _frame(0), _frames(0), _repeat(true) {
++	if (SearchMan.hasFile(Common::Path(name + "_0.tga"))) {
++		while (SearchMan.hasFile(Common::Path(Common::String::format("%s_%d.tga", name.c_str(), _frames))))
++			_frames++;
++		_anim = new Bitmap *[_frames];
++		for (int i = 0; i < _frames; i++)
++			_anim[i] = load(Common::String::format("%s_%d.tga", name.c_str(), i));
++	} else if (SearchMan.hasFile(Common::Path(name + ".tga"))) {
++		_frames = 1;
++		_anim = new Bitmap *[1];
++		_anim[0] = load(name + ".tga");
++	}
++}
++
++CursorData::~CursorData() {
++	delete[] _anim;
++}
++
++Bitmap *CursorData::load(const Common::String &name) {
++	Bitmap *bmp = Bitmap::create(name);
++	if (bmp) {
++		bmp->_data->load();
++		bmp->_data->_hasTransparency = true;
++	}
++	return bmp;
++}
++
++void CursorData::reset() {
++	_frame = 0;
++	_frameTick = g_system->getMillis();
++}
++
++void CursorData::draw(const Common::Point &pos) {
++	if (!_anim)
++		return;
++	const uint32 delta = 50;
++	uint32 curTick = g_system->getMillis();
++	if (curTick - _frameTick > 5 * delta) {
++		_frameTick = curTick;
++		_frame = 0;
++	}
++	while (curTick - _frameTick > delta) {
++		_frameTick += delta;
++		_frame++;
++		if (_repeat)
++			_frame = _frame % _frames;
++	}
++	if (_frame >= _frames || !_anim[_frame])
++		return;
++	Bitmap *bmp = _anim[_frame];
++	bmp->draw(pos.x - bmp->getWidth() / 2, pos.y - bmp->getHeight() / 2);
++}
++
++Cursor::Cursor() : _curCursor(0), _position(320, 210), _data(nullptr) {
++	for (int i = 0; i < 2; i++)
++		_persistentCursor[i] = -1;
++	loadAvailableCursors();
++}
++
++Cursor::~Cursor() {
++	if (_data) {
++		for (int i = 0; i < kNumCursors; i++)
++			delete _data[i];
++		delete[] _data;
++	}
++}
++
++void Cursor::loadAvailableCursors() {
++	if (!_data) {
++		_data = new CursorData *[kNumCursors];
++		for (int i = 0; i < kNumCursors; i++)
++			_data[i] = nullptr;
++	}
++	for (int i = 0; i < kNumCursors; i++) {
++		delete _data[i];
++		_data[i] = new CursorData(Common::String::format("cursor%d", i));
++	}
++	CursorMan.showMouse(false);
++}
++
++void Cursor::reload() {
++	loadAvailableCursors();
++}
++
++void Cursor::setCursor(int id) {
++	if (id >= kNumCursors)
++		id = 0;
++	if (_curCursor != id && id >= 0)
++		_data[id]->reset();
++	_curCursor = id;
++}
++
++void Cursor::setPersistent(int pc, int id, int x, int y) {
++	if (id >= kNumCursors)
++		id = -1;
++	if (_persistentCursor[pc] != id && id >= 0)
++		_data[id]->reset();
++	_persistentCursor[pc] = id;
++	_persistentPosition[pc].x = x;
++	_persistentPosition[pc].y = y;
++}
++
++void Cursor::draw() {
++	if (_curCursor >= 0)
++		_data[_curCursor]->draw(_position);
++	for (int i = 0; i < 2; i++)
++		if (_persistentCursor[i] >= 0)
++			_data[_persistentCursor[i]]->draw(_persistentPosition[i]);
++}
++
++} // end of namespace Grim
+diff --git a/engines/grim/cursor.h b/engines/grim/cursor.h
+new file mode 100644
+--- /dev/null
++++ b/engines/grim/cursor.h
+@@ -0,0 +1,80 @@
++/* ScummVM - Graphic Adventure Engine
++ *
++ * ScummVM is the legal property of its developers, whose names
++ * are too numerous to list here. Please refer to the COPYRIGHT
++ * file distributed with this source distribution.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
++ *
++ */
++
++/*
++ * Grim Mouse cursor, drawn by the engine as a bitmap (cursor0..7.tga from
++ * grim-mouse.lab). Originally by Tobias Pfaff for ResidualVM (2014,
++ * GPL-2.0-or-later); ported to ScummVM for PointyClicky.
++ */
++
++#ifndef GRIM_CURSOR_H
++#define GRIM_CURSOR_H
++
++#include "common/rect.h"
++#include "common/str.h"
++
++namespace Grim {
++
++class Bitmap;
++
++class CursorData {
++public:
++	CursorData(const Common::String &name);
++	~CursorData();
++	void draw(const Common::Point &pos);
++	void reset();
++
++private:
++	Bitmap *load(const Common::String &name);
++	Bitmap **_anim;
++	uint32 _frameTick;
++	int _frame, _frames;
++	bool _repeat;
++};
++
++class Cursor {
++public:
++	Cursor();
++	~Cursor();
++
++	Common::Point getPosition() const { return _position; }
++	void updatePosition(const Common::Point &mouse) { _position = mouse; }
++	void setCursor(int id);
++	int getCursor() const { return _curCursor; }
++	void reload();
++	void setPersistent(int pc, int id, int x = -1, int y = -1);
++
++	void draw();
++
++private:
++	void loadAvailableCursors();
++
++	int _curCursor;
++	int _persistentCursor[2];
++	Common::Point _position;
++	Common::Point _persistentPosition[2];
++	CursorData **_data;
++};
++
++} // end of namespace Grim
++
++#endif
+diff --git a/engines/grim/gfx_base.h b/engines/grim/gfx_base.h
+--- a/engines/grim/gfx_base.h
++++ b/engines/grim/gfx_base.h
+@@ -214,6 +214,9 @@
+ 	virtual void irisAroundRegion(int x1, int y1, int x2, int y2) = 0;
+ 
+ 	virtual void drawEmergString(int x, int y, const char *text, const Color &fgColor) = 0;
++
++	/** Grim Mouse: a black rectangle at this opacity over the frame (game pixels). */
++	virtual void blackbox(int x0, int y0, int x1, int y1, float opacity) {}
+ 	virtual void loadEmergFont() = 0;
+ 
+ 	virtual void drawRectangle(const PrimitiveObject *primitive) = 0;
+diff --git a/engines/grim/gfx_opengl.cpp b/engines/grim/gfx_opengl.cpp
+--- a/engines/grim/gfx_opengl.cpp
++++ b/engines/grim/gfx_opengl.cpp
+@@ -2066,6 +2066,34 @@
+ 	glDepthMask(GL_TRUE);
+ }
+ 
++void GfxOpenGL::blackbox(int x0, int y0, int x1, int y1, float opacity) {
++	glMatrixMode(GL_PROJECTION);
++	glLoadIdentity();
++	glOrtho(0, _screenWidth, _screenHeight, 0, 0, 1);
++	glMatrixMode(GL_MODELVIEW);
++	glLoadIdentity();
++
++	glDisable(GL_LIGHTING);
++	glDisable(GL_DEPTH_TEST);
++	glDepthMask(GL_FALSE);
++	glEnable(GL_BLEND);
++	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
++
++	glColor4f(0.f, 0.f, 0.f, opacity);
++	glBegin(GL_QUADS);
++	glVertex2f(x0 * _scaleW, y0 * _scaleH);
++	glVertex2f(x1 * _scaleW, y0 * _scaleH);
++	glVertex2f(x1 * _scaleW, y1 * _scaleH);
++	glVertex2f(x0 * _scaleW, y1 * _scaleH);
++	glEnd();
++	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
++
++	glDisable(GL_BLEND);
++	glDepthMask(GL_TRUE);
++	glEnable(GL_DEPTH_TEST);
++	glEnable(GL_LIGHTING);
++}
++
+ void GfxOpenGL::drawRectangle(const PrimitiveObject *primitive) {
+ 	float x1 = primitive->getP1().x * _scaleW;
+ 	float y1 = primitive->getP1().y * _scaleH;
+diff --git a/engines/grim/gfx_opengl.h b/engines/grim/gfx_opengl.h
+--- a/engines/grim/gfx_opengl.h
++++ b/engines/grim/gfx_opengl.h
+@@ -112,6 +112,7 @@
+ 	void irisAroundRegion(int x1, int y1, int x2, int y2) override;
+ 
+ 	void drawEmergString(int x, int y, const char *text, const Color &fgColor) override;
++	void blackbox(int x0, int y0, int x1, int y1, float opacity) override;
+ 	void loadEmergFont() override;
+ 
+ 	void drawRectangle(const PrimitiveObject *primitive) override;
+diff --git a/engines/grim/gfx_opengl_shaders.cpp b/engines/grim/gfx_opengl_shaders.cpp
+--- a/engines/grim/gfx_opengl_shaders.cpp
++++ b/engines/grim/gfx_opengl_shaders.cpp
+@@ -1952,6 +1952,35 @@
+ 	glEnable(GL_DEPTH_TEST);
+ }
+ 
++void GfxOpenGLS::blackbox(int x0, int y0, int x1, int y1, float opacity) {
++	float px1 = x0 * _scaleW, py1 = y0 * _scaleH;
++	float px2 = x1 * _scaleW, py2 = y1 * _scaleH;
++	float data[] = { px1, py1, px2, py1, px1, py2, px2, py2 };
++
++	GLuint prim = nextPrimitive();
++	glBindBuffer(GL_ARRAY_BUFFER, prim);
++	glBufferSubData(GL_ARRAY_BUFFER, 0, 8 * sizeof(float), data);
++
++	// The primitive shader has no alpha: blend with a constant one instead.
++	glEnable(GL_BLEND);
++	glBlendColor(0.f, 0.f, 0.f, opacity);
++	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
++	glDisable(GL_DEPTH_TEST);
++	glDepthMask(GL_FALSE);
++
++	_primitiveProgram->enableVertexAttribute("position", prim, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
++	_primitiveProgram->use(true);
++	_primitiveProgram->setUniform("color", Math::Vector3d(0.f, 0.f, 0.f));
++	_primitiveProgram->setUniform("scaleWH", Math::Vector2d(1.f / _gameWidth, 1.f / _gameHeight));
++	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
++
++	glBindBuffer(GL_ARRAY_BUFFER, 0);
++	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
++	glDisable(GL_BLEND);
++	glDepthMask(GL_TRUE);
++	glEnable(GL_DEPTH_TEST);
++}
++
+ void GfxOpenGLS::drawRectangle(const PrimitiveObject *primitive) {
+ 	float x1 = primitive->getP1().x * _scaleW;
+ 	float y1 = primitive->getP1().y * _scaleH;
+diff --git a/engines/grim/gfx_opengl_shaders.h b/engines/grim/gfx_opengl_shaders.h
+--- a/engines/grim/gfx_opengl_shaders.h
++++ b/engines/grim/gfx_opengl_shaders.h
+@@ -170,6 +170,7 @@
+ 	void irisAroundRegion(int x1, int y1, int x2, int y2) override;
+ 
+ 	void drawEmergString(int x, int y, const char *text, const Color &fgColor) override;
++	void blackbox(int x0, int y0, int x1, int y1, float opacity) override;
+ 	void loadEmergFont() override;
+ 
+ 	void drawRectangle(const PrimitiveObject *primitive) override;
+diff --git a/engines/grim/gfx_tinygl.cpp b/engines/grim/gfx_tinygl.cpp
+--- a/engines/grim/gfx_tinygl.cpp
++++ b/engines/grim/gfx_tinygl.cpp
+@@ -1312,6 +1312,34 @@
+ 	tglDepthMask(TGL_TRUE);
+ }
+ 
++void GfxTinyGL::blackbox(int x0, int y0, int x1, int y1, float opacity) {
++	tglMatrixMode(TGL_PROJECTION);
++	tglLoadIdentity();
++	tglOrthof(0, _screenWidth, _screenHeight, 0, 0, 1);
++	tglMatrixMode(TGL_MODELVIEW);
++	tglLoadIdentity();
++
++	tglDisable(TGL_LIGHTING);
++	tglDisable(TGL_DEPTH_TEST);
++	tglDepthMask(TGL_FALSE);
++	tglEnable(TGL_BLEND);
++	tglBlendFunc(TGL_SRC_ALPHA, TGL_ONE_MINUS_SRC_ALPHA);
++
++	tglColor4f(0.f, 0.f, 0.f, opacity);
++	tglBegin(TGL_QUADS);
++	tglVertex2f(x0 * _scaleW, y0 * _scaleH);
++	tglVertex2f(x1 * _scaleW, y0 * _scaleH);
++	tglVertex2f(x1 * _scaleW, y1 * _scaleH);
++	tglVertex2f(x0 * _scaleW, y1 * _scaleH);
++	tglEnd();
++	tglColor4f(1.0f, 1.0f, 1.0f, 1.0f);
++
++	tglDisable(TGL_BLEND);
++	tglDepthMask(TGL_TRUE);
++	tglEnable(TGL_DEPTH_TEST);
++	tglEnable(TGL_LIGHTING);
++}
++
+ void GfxTinyGL::drawRectangle(const PrimitiveObject *primitive) {
+ 	float x1 = primitive->getP1().x * _scaleW;
+ 	float y1 = primitive->getP1().y * _scaleH;
+diff --git a/engines/grim/gfx_tinygl.h b/engines/grim/gfx_tinygl.h
+--- a/engines/grim/gfx_tinygl.h
++++ b/engines/grim/gfx_tinygl.h
+@@ -113,6 +113,7 @@
+ 	void copyStoredToDisplay() override;
+ 
+ 	void drawEmergString(int x, int y, const char *text, const Color &fgColor) override;
++	void blackbox(int x0, int y0, int x1, int y1, float opacity) override;
+ 	void loadEmergFont() override;
+ 
+ 	void drawRectangle(const PrimitiveObject *primitive) override;
+diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
+--- a/engines/grim/grim.cpp
++++ b/engines/grim/grim.cpp
+@@ -74,6 +74,8 @@
+ #include "engines/grim/set.h"
+ #include "engines/grim/sound.h"
+ #include "engines/grim/debugger.h"
++#include "engines/grim/cursor.h"
++#include "engines/grim/hotspotman.h"
+ #include "engines/grim/remastered/overlay.h"
+ #include "engines/grim/remastered/lua_remastered.h"
+ #include "engines/grim/remastered/commentary.h"
+@@ -227,6 +229,10 @@
+ 	delete g_driver;
+ 	g_driver = nullptr;
+ 	delete _iris;
++	delete _hotspotManager;
++	_hotspotManager = nullptr;
++	delete _cursor;
++	_cursor = nullptr;
+ 
+ 	// Remastered:
+ 	delete _commentary;
+@@ -422,6 +428,15 @@
+ 	if (getGameType() == GType_MONKEY4 && SearchMan.hasFile("AMWI.m4b")) {
+ 		// Play EMI Mac Aspyr logo
+ 		playAspyrLogo();
++	}
++
++	// Grim Mouse: point-and-click, on request (grim_mouse=true) and only when
++	// its data (grim-mouse.lab, loaded by the ResourceLoader) is there.
++	if (ResourceLoader::wantsGrimMouse()) {
++		_cursor = new Cursor();
++		_hotspotManager = new HotspotMan();
++		_hotspotManager->initialize();
++		debug("Grim Mouse: on");
+ 	}
+ 
+ 	Bitmap *splash_bm = nullptr;
+@@ -813,6 +828,9 @@
+ 		_frameTime = 0;
+ 	}
+ 
++	if (_hotspotManager)
++		_hotspotManager->cutSceneMode(LuaBase::instance()->queryVariable("cutSceneLevel", true));
++
+ 	LuaBase::instance()->update(_frameTime, _movieTime);
+ 
+ 	if (_currSet && (_mode == NormalMode || _mode == SmushMode)) {
+@@ -874,6 +892,10 @@
+ 		updateNormalMode();
+ 	} else if (_mode == DrawMode) {
+ 		updateDrawMode();
++		// Grim Mouse's inventory screen repaints itself every frame (its
++		// userPaintHandler draws the items and the cursor).
++		if (_hotspotManager)
++			handleUserPaint();
+ 	}
+ }
+ 
+@@ -964,6 +986,64 @@
+ 	// The overlay objects should be drawn on top of everything else,
+ 	// including 3D objects such as Manny and the message tube
+ 	_currSet->drawBitmaps(ObjectState::OBJSTATE_OVERLAY);
++
++	drawCursor();
++}
++
++void GrimEngine::drawCursor() {
++	if (!_hotspotManager)
++		return;
++	_hotspotManager->drawActive();
++	_cursor->draw();
++}
++
++// Grim Mouse: pointer and buttons. Returns true when the event was used.
++// Left: walk / use (twice within 500 ms: run), right: look, middle (or a right
++// click on Manny himself, for hosts with two buttons): the inventory.
++bool GrimEngine::handleMouseEvent(Common::Event &event) {
++	if (!_hotspotManager || _mode == SmushMode)
++		return false;
++	Common::EventType type = event.type;
++	if (type == Common::EVENT_MOUSEMOVE) {
++		_cursor->updatePosition(event.mouse);
++		_hotspotManager->hover(_cursor->getPosition());
++		return true;
++	}
++	if (type != Common::EVENT_LBUTTONDOWN && type != Common::EVENT_RBUTTONDOWN &&
++	    type != Common::EVENT_MBUTTONDOWN && type != Common::EVENT_WHEELUP && type != Common::EVENT_WHEELDOWN) {
++		return type == Common::EVENT_LBUTTONUP || type == Common::EVENT_RBUTTONUP || type == Common::EVENT_MBUTTONUP;
++	}
++	_cursor->updatePosition(event.mouse);
++	bool doubleClick = false;
++	if (type == Common::EVENT_LBUTTONDOWN) {
++		uint32 now = g_system->getMillis();
++		doubleClick = (now - _lastClick) < 500;
++		_lastClick = now;
++	}
++	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
++	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
++	if (type == Common::EVENT_RBUTTONDOWN && _hotspotManager->getCtrlMode() == HotspotMan::Normal &&
++	    !_hotspotManager->isDialog()) {
++		// On Manny (he stands in front of whatever is behind him): from his
++		// feet to the top of his head on screen, a quarter of that either side.
++		Common::Point feet = _hotspotManager->mannyPos2D(0.f), head = _hotspotManager->mannyPos2D(0.6f);
++		Common::Point p = _cursor->getPosition();
++		if (feet.x || feet.y) {
++			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
++			int cx = (feet.x + head.x) / 2;
++			inventory = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
++			debug(1, "Grim Mouse: right click %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y, inventory ? ": inventory" : "");
++		}
++	}
++	if (inventory) {
++		Common::KeyState kbd(Common::KEYCODE_i, 'i');
++		handleChars(Common::EVENT_KEYDOWN, kbd);
++		handleControls(Common::EVENT_KEYDOWN, kbd);
++		handleControls(Common::EVENT_KEYUP, kbd);
++		return true;
++	}
++	_hotspotManager->event(_cursor->getPosition(), event, doubleClick);
++	return true;
+ }
+ 
+ void GrimEngine::doFlip() {
+@@ -1062,6 +1142,14 @@
+ 		while (g_system->getEventManager()->pollEvent(event)) {
+ 			// Handle any buttons, keys and joystick operations
+ 			Common::EventType type = event.type;
++			if (handleMouseEvent(event))
++				continue;
++			if (type == Common::EVENT_KEYDOWN && _hotspotManager && _mode != DrawMode && _mode != SmushMode &&
++			    _hotspotManager->getCtrlMode() == HotspotMan::Normal && event.kbd.keycode == Common::KEYCODE_SPACE) {
++				// Grim Mouse: Space flashes every hotspot of the room
++				_hotspotManager->flashHotspots();
++				continue;
++			}
+ 			if (type == Common::EVENT_KEYDOWN || type == Common::EVENT_KEYUP) {
+ 				if (type == Common::EVENT_KEYDOWN) {
+ 					// Ignore everything but ESC when movies are playing
+@@ -1260,6 +1348,11 @@
+ 	lua_Restore(_savedState);
+ 	Debug::debug(Debug::Engine, "Lua restored successfully.");
+ 
++	if (_hotspotManager) {
++		_hotspotManager->restoreState(_savedState);
++		Debug::debug(Debug::Engine, "Hotspots restored successfully.");
++	}
++
+ 	if (getGameType() == GType_GRIM && !(getGameFlags() & ADGF_DEMO) &&
+ 		_savedState->saveMajorVersion() == 22 &&
+ 		_savedState->saveMinorVersion() >= 7 &&
+@@ -1294,6 +1387,11 @@
+ 
+ 	_currSet->setupCamera();
+ 	g_driver->set3DMode();
++
++	if (_cursor)
++		_cursor->reload();
++	if (_hotspotManager)
++		_hotspotManager->updatePerspective();
+ }
+ 
+ void GrimEngine::restoreGRIM() {
+@@ -1458,6 +1556,9 @@
+ 
+ 	lua_Save(_savedState);
+ 
++	if (_hotspotManager)
++		_hotspotManager->saveState(_savedState);
++
+ 	delete _savedState;
+ 
+ 	if (g_imuse)
+@@ -1582,6 +1683,8 @@
+ 		// here should be set sound position
+ 
+ 		_setupChanged = true;
++		if (_hotspotManager)
++			_hotspotManager->updatePerspective();
+ 	}
+ }
+ 
+diff --git a/engines/grim/grim.h b/engines/grim/grim.h
+--- a/engines/grim/grim.h
++++ b/engines/grim/grim.h
+@@ -47,6 +47,8 @@
+ class TextObject;
+ class PrimitiveObject;
+ class LuaBase;
++class Cursor;
++class HotspotMan;
+ class Commentary;
+ class GfxBase;
+ 
+@@ -205,7 +207,19 @@
+ 
+ 	void debugLua(const Common::String &str);
+ 
++	// Grim Mouse (point-and-click; config key grim_mouse=true, Grim Fandango
++	// only, not the demo or the Remastered). Both are null when it is off.
++	bool isGrimMouse() const { return _hotspotManager != nullptr; }
++	HotspotMan *getHotspotMan() { return _hotspotManager; }
++	Cursor *getCursor() { return _cursor; }
++	void drawCursor();
++
+ protected:
++	Cursor *_cursor = nullptr;
++	HotspotMan *_hotspotManager = nullptr;
++	uint32 _lastClick = 0;
++	bool handleMouseEvent(Common::Event &event);
++
+ 	void pauseEngineIntern(bool pause) override;
+ 
+ 	void handleControls(Common::EventType type, const Common::KeyState &key);
+diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
+new file mode 100644
+--- /dev/null
++++ b/engines/grim/hotspotman.cpp
+@@ -0,0 +1,922 @@
++/* ScummVM - Graphic Adventure Engine
++ *
++ * ScummVM is the legal property of its developers, whose names
++ * are too numerous to list here. Please refer to the COPYRIGHT
++ * file distributed with this source distribution.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
++ *
++ */
++
++/*
++ * Grim Mouse hotspot manager. Originally by Tobias Pfaff for ResidualVM
++ * (2014, GPL-2.0-or-later, https://github.com/tobiaspfaff/grim_mouse);
++ * ported to ScummVM 2026.4.0 for PointyClicky. See hotspot.h.
++ */
++
++#include "common/config-manager.h"
++#include "common/system.h"
++#include "math/angle.h"
++
++#include "engines/grim/hotspotman.h"
++#include "engines/grim/bitmap.h"
++#include "engines/grim/primitives.h"
++#include "engines/grim/gfx_base.h"
++#include "engines/grim/grim.h"
++#include "engines/grim/actor.h"
++#include "engines/grim/set.h"
++#include "engines/grim/sector.h"
++#include "engines/grim/cursor.h"
++#include "engines/grim/lua.h"
++#include "engines/grim/resource.h"
++#include "engines/grim/savegame.h"
++
++namespace Grim {
++
++static const int kGameW = 640, kGameH = 480;
++
++void HotPolygon::draw(const Color &col) {
++	for (uint i = 0; i < _pnts.size(); i++) {
++		PrimitiveObject line;
++		line.createLine(_pnts[i], _pnts[(i + 1) % _pnts.size()], col);
++		line.draw();
++	}
++}
++
++bool HotPolygon::contains(const Common::Point &pos) const {
++	bool result = false;
++	for (int i = 0, j = _pnts.size() - 1; i < (int)_pnts.size(); j = i++) {
++		if ((_pnts[i].y > pos.y) != (_pnts[j].y > pos.y) &&
++		    (pos.x < (_pnts[j].x - _pnts[i].x) * (pos.y - _pnts[i].y) / (_pnts[j].y - _pnts[i].y) + _pnts[i].x)) {
++			result = !result;
++		}
++	}
++	return result;
++}
++
++Common::Point HotPolygon::center() const {
++	if (_pnts.empty())
++		return Common::Point(0, 0);
++	int x = 0, y = 0;
++	for (uint i = 0; i < _pnts.size(); i++) {
++		x += _pnts[i].x;
++		y += _pnts[i].y;
++	}
++	return Common::Point(x / (int)_pnts.size(), y / (int)_pnts.size());
++}
++
++void HotPolygon::move(const Common::Point &c) {
++	Common::Point p = center();
++	Common::Point offset(c.x - p.x, c.y - p.y);
++	for (uint i = 0; i < _pnts.size(); i++)
++		_pnts[i] += offset;
++}
++
++void HotPolygon::fixBorders() {
++	const int FIX_BORDER = 6;
++	Common::Point c = center();
++	for (uint i = 0; i < _pnts.size(); i++) {
++		Common::Point &p = _pnts[i];
++		if (p.x <= FIX_BORDER && p.x < c.x) p.x = 0;
++		if (p.x >= kGameW - FIX_BORDER && p.x > c.x) p.x = kGameW;
++		if (p.y <= FIX_BORDER && p.y < c.y) p.y = 0;
++		if (p.y >= kGameH - FIX_BORDER && p.y > c.y) p.y = kGameH;
++	}
++}
++
++static Actor *getManny() {
++	for (Actor *a : g_grim->getActiveActors()) {
++		if (a->getName() == "Manny")
++			return a;
++	}
++	return nullptr;
++}
++
++// ---- Camera, renderer independent ----------------------------------------
++//
++// Grim's sets use Set::Setup::setupCamera(): a frustum of _fov (horizontal,
++// degrees), aspect 4:3, near 0.01, far 3276.8; a look-at from _pos to
++// _interest with up = +z (+y when looking straight down), then a roll about
++// the view axis. This is what GfxOpenGLS/GfxOpenGL/GfxTinyGL all build, so the
++// projection is done here once instead of in every renderer (Grim Mouse had it
++// in the OpenGL renderers only, which is why TinyGL never worked there).
++
++struct GrimCamera {
++	Math::Vector3d pos, s, u, f;
++	float tanX, cr, sr;
++};
++
++static bool currentCamera(GrimCamera &cam) {
++	Set *set = g_grim->getCurrSet();
++	if (!set)
++		return false;
++	Set::Setup *setup = set->getCurrSetup();
++	if (!setup)
++		return false;
++	cam.pos = setup->_pos;
++	const Math::Vector3d &interest = setup->_interest;
++	Math::Vector3d up(0, 0, 1);
++	if (cam.pos.x() == interest.x() && cam.pos.y() == interest.y())
++		up = Math::Vector3d(0, 1, 0);
++	cam.f = (interest - cam.pos).getNormalized();
++	cam.s = Math::Vector3d::crossProduct(cam.f, up).getNormalized();
++	cam.u = Math::Vector3d::crossProduct(cam.s, cam.f);
++	cam.tanX = tan(setup->_fov / 2 * (float)M_PI / 180.f);
++	Math::Angle roll(setup->_roll);
++	cam.cr = roll.getCosine();
++	cam.sr = roll.getSine();
++	return cam.tanX > 0;
++}
++
++bool HotspotMan::worldToScreen(const Math::Vector3d &p, int &x, int &y) {
++	GrimCamera cam;
++	if (!currentCamera(cam))
++		return false;
++	Math::Vector3d d = p - cam.pos;
++	float ex = cam.s.dotProduct(d), ey = cam.u.dotProduct(d), depth = cam.f.dotProduct(d);
++	if (depth <= 0.f)
++		return false;
++	// roll, as makeRotationMatrix(roll, z) in GfxOpenGLS
++	float rx = cam.cr * ex + cam.sr * ey;
++	float ry = -cam.sr * ex + cam.cr * ey;
++	float nx = rx / depth / cam.tanX;
++	float ny = ry / depth / (0.75f * cam.tanX);
++	float wx = (nx + 1.f) * 0.5f * kGameW;
++	float wy = kGameH - (ny + 1.f) * 0.5f * kGameH;
++	wx = CLIP<float>(wx, 0, kGameW - 1);
++	wy = CLIP<float>(wy, 0, kGameH - 1);
++	x = (int)wx;
++	y = (int)wy;
++	return x > 0 && y > 0 && x < kGameW - 1 && y < kGameH - 1;
++}
++
++bool HotspotMan::raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1) {
++	GrimCamera cam;
++	if (!currentCamera(cam))
++		return false;
++	float nx = 2.f * (x + 0.5f) / kGameW - 1.f;
++	float ny = 2.f * (kGameH - y - 0.5f) / kGameH - 1.f;
++	float rx = nx * cam.tanX, ry = ny * 0.75f * cam.tanX;
++	float ex = cam.cr * rx - cam.sr * ry;
++	float ey = cam.sr * rx + cam.cr * ry;
++	Math::Vector3d dir = cam.s * ex + cam.u * ey + cam.f;
++	// Same shape as gluUnProject at z=0 and z=1: r0 on the near plane, r1 the
++	// whole ray to the far plane (freeClick nudges both down a little at a time).
++	const float nclip = 0.01f, fclip = 3276.8f;
++	r0 = cam.pos + dir * nclip;
++	r1 = dir * (fclip - nclip);
++	return true;
++}
++
++// ---------------------------------------------------------------------------
++
++HotspotMan::HotspotMan() :
++	_cutScene(0), _ctrlMode(0), _rows(0), _cols(0), _x0(0), _y0(0), _w(0), _h(0),
++	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr) {
++	for (int i = 0; i < 8; i++)
++		_flashBitmaps[i] = nullptr;
++	ConfMan.registerDefault("grim_mouse_debug", false);
++	ConfMan.registerDefault("grim_mouse_names", false);
++	_showDebug = ConfMan.getBool("grim_mouse_debug");
++	_showNames = ConfMan.getBool("grim_mouse_names");
++}
++
++HotspotMan::~HotspotMan() {
++}
++
++static Common::String readString(Common::SeekableReadStream *data) {
++	int len = data->readSint32LE();
++	if (len <= 0 || len > 4096)
++		return Common::String();
++	char *buf = new char[len + 1];
++	data->read(buf, len);
++	buf[len] = 0;
++	Common::String s(buf);
++	delete[] buf;
++	return s;
++}
++
++void HotspotMan::initialize() {
++	_hotspots.clear();
++	Common::SeekableReadStream *data = g_resourceloader->openNewStreamFile("set.bin");
++	if (!data) {
++		warning("Grim Mouse: set.bin not found (is grim-mouse.lab installed?)");
++		return;
++	}
++	int numSets = data->readSint32LE();
++	for (int i = 0; i < numSets; i++) {
++		Common::String setID = readString(data);
++		Common::Array<MouseHotspot> &list = _hotspots[setID];
++		list.clear();
++		int numHS = data->readSint32LE();
++		for (int j = 0; j < numHS; j++) {
++			MouseHotspot hs;
++			hs._id = readString(data);
++			hs._desc = readString(data);
++			hs._setup = data->readSint32LE();
++			hs._type = data->readSint32LE();
++			hs._objId = -1;
++			int numPath = data->readSint32LE();
++			for (int k = 0; k < numPath; k++) {
++				float px = data->readFloatLE();
++				float py = data->readFloatLE();
++				float pz = data->readFloatLE();
++				hs._path.push_back(Math::Vector3d(px, py, pz));
++			}
++			int numPoly = data->readSint32LE();
++			for (int k = 0; k < numPoly; k++) {
++				int x = data->readSint32LE(), y = data->readSint32LE();
++				hs._region._pnts.push_back(Common::Point(x, y));
++			}
++			hs._region.fixBorders();
++			list.push_back(hs);
++		}
++	}
++	delete data;
++	loadFlashBitmaps();
++	_initialized = true;
++	debug("Grim Mouse: %d sets with hotspots", numSets);
++}
++
++void HotspotMan::loadFlashBitmaps() {
++	for (int i = 0; i < 8; i++) {
++		Common::String fn = Common::String::format("cursor%d_hl.tga", i);
++		_flashBitmaps[i] = Bitmap::create(fn);
++		if (_flashBitmaps[i]) {
++			_flashBitmaps[i]->_data->load();
++			_flashBitmaps[i]->_data->_hasTransparency = true;
++		}
++	}
++}
++
++Common::Array<MouseHotspot> &HotspotMan::hotspotsOf(const Common::String &set) {
++	return _hotspots[set];
++}
++
++int HotspotMan::addHotspot(const Common::String &name, const Math::Vector3d &pos, const Common::String &scene) {
++	HotObject hs;
++	hs._pos = pos;
++	hs._active = false;
++	_hotobject.push_back(hs);
++
++	int num = _hotobject.size() - 1;
++	renameHotspot(num, name);
++	return num;
++}
++
++void HotspotMan::disableAll() {
++	for (uint i = 0; i < _hotobject.size(); i++)
++		_hotobject[i]._active = false;
++}
++
++void HotspotMan::flashHotspots() {
++	if (_cutScene > 0)
++		return;
++	_flashStart = g_system->getMillis();
++	_flashHS = true;
++	update();
++}
++
++void HotspotMan::drawActive() {
++	if (!g_grim->getCurrSet())
++		return;
++	int setup = g_grim->getCurrSet()->getSetup();
++	if (_flashHS) {
++		uint32 delta = g_system->getMillis() - _flashStart;
++		if (delta >= 1700)
++			_flashHS = false;
++		if ((delta % 900) < 450) {
++			Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++			for (uint i = 0; i < hotspots.size(); i++) {
++				MouseHotspot &hs = hotspots[i];
++				if (hs._setup == setup && (hs._objId <= 0 || _hotobject[hs._objId]._active)) {
++					if ((_ctrlMode == Dialog && hs._type >= 20) ||
++					    (_ctrlMode == Special && hs._type >= 10 && hs._type < 20) ||
++					    (_ctrlMode == Linear && hs._type >= 10 && hs._type < 20) ||
++					    ((_ctrlMode == Normal || _ctrlMode == NoWalk) && hs._type < 10)) {
++						int cu = hs._type % 10;
++						if (hs._type == 3) cu = 2;
++						if (hs._type == 4) cu = 1;
++						Common::Point p = hs._region.center();
++						if (cu >= 0 && cu < 8 && _flashBitmaps[cu])
++							_flashBitmaps[cu]->draw(p.x - 15, p.y - 15);
++					}
++				}
++			}
++		}
++	}
++
++	if (_ctrlMode == Inventory && _cols > 0) {
++		const int dx = 4;
++		int num_rows = _inventory.empty() ? 1 : (_inventory.size() - 1) / _cols + 1;
++		int x1 = _x0 + _w * _cols, y1 = _y0 + _h * num_rows;
++		g_driver->blackbox(0, 0, kGameW, kGameH, 0.4f);
++		g_driver->blackbox(_x0 - dx, _y0 - dx, x1 + dx, y1 + dx, 0.9f);
++		PrimitiveObject rect;
++		rect.createRectangle(Common::Point(_x0 - dx, _y0 - dx), Common::Point(x1 + dx, y1 + dx), Color(195, 195, 100), false);
++		rect.draw();
++
++		for (int j = 0, idx = 0; j < _rows; j++) {
++			for (int i = 0; i < _cols; i++, idx++) {
++				if (idx >= (int)_inventory.size())
++					break;
++				if (_inventory[idx]._bmp)
++					_inventory[idx]._bmp->draw(_x0 + i * _w, _y0 + j * _h);
++			}
++		}
++	}
++
++	// grim_mouse_debug=true: outline every hotspot of this camera (magenta:
++	// the game's objects, cyan: the hand-drawn polygons).
++	if (_showDebug) {
++		for (uint i = 0; i < _hotobject.size(); i++) {
++			if (_hotobject[i]._active) {
++				PrimitiveObject prim;
++				prim.createRectangle(Common::Point(_hotobject[i]._rect.left, _hotobject[i]._rect.top),
++				                     Common::Point(_hotobject[i]._rect.right, _hotobject[i]._rect.bottom), Color(200, 0, 200), false);
++				prim.draw();
++			}
++		}
++		Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++		for (uint i = 0; i < hotspots.size(); i++) {
++			if (hotspots[i]._setup == setup || _ctrlMode == Options)
++				hotspots[i]._region.draw(Color(0, 200, 200));
++		}
++	}
++
++	// grim_mouse_names=true: the name of what's under the pointer, above it.
++	if (!_hoverName.empty() && _cutScene == 0 && (_ctrlMode == Normal || _ctrlMode == NoWalk) &&
++	    _showNames) {
++		int w = _hoverName.size() * 10;
++		int x = CLIP<int>(_lastCursor.x - w / 2, 2, kGameW - w - 2);
++		int y = _lastCursor.y - 34;
++		if (y < 4) y = _lastCursor.y + 24;
++		g_driver->drawEmergString(x + 1, y + 1, _hoverName.c_str(), Color(0, 0, 0));
++		g_driver->drawEmergString(x, y, _hoverName.c_str(), Color(255, 255, 255));
++	}
++}
++
++void HotspotMan::updatePerspective() {
++	if (!g_grim->getCurrSet())
++		return;
++	for (uint i = 0; i < _hotobject.size(); i++) {
++		int x = 0, y = 0;
++		worldToScreen(_hotobject[i]._pos, x, y);
++		_hotobject[i]._rect = Common::Rect(x - 10, y - 10, x + 10, y + 10);
++	}
++	restoreCursor();
++}
++
++void HotspotMan::cutSceneMode(int mode) {
++	if (_cutScene != mode) {
++		_cutScene = mode;
++		restoreCursor();
++	}
++}
++
++Common::String HotspotMan::activeSet() {
++	if (!_curOption.empty() && _ctrlMode == Options)
++		return _curOption;
++	return g_grim->getCurrSet() ? g_grim->getCurrSet()->getName() : Common::String();
++}
++
++// get min distance s for x0+s*x1, y0+t*y1
++static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
++                           const Math::Vector3d &y0, const Math::Vector3d &y1) {
++	double a = x1.dotProduct(x1), b = -x1.dotProduct(y1), c = y1.dotProduct(y1);
++	double d = -x1.dotProduct(x0 - y0), e = y1.dotProduct(x0 - y0);
++	return (c * d - b * e) / (c * a - b * b);
++}
++
++void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
++	if (!g_grim->getCurrSet())
++		return;
++	bool climbing = LuaBase::instance()->queryVariable("system.currentActor.is_climbing", false) != 0;
++
++	int button = 0;
++	if (ev.type == Common::EVENT_LBUTTONDOWN)
++		button = 1;
++	else if (ev.type == Common::EVENT_RBUTTONDOWN)
++		button = 2;
++	else if (ev.type == Common::EVENT_MBUTTONDOWN)
++		button = 3;
++	else if (ev.type == Common::EVENT_WHEELUP || ev.type == Common::EVENT_WHEELDOWN)
++		button = 4;
++	if (ev.kbd.hasFlags(Common::KBD_ALT))
++		button = 2;
++	if (ev.kbd.hasFlags(Common::KBD_CTRL))
++		button = 3;
++	update();
++
++	// --- first, try the active hotspot
++	if (_activeHS) {
++		Common::Point delta = cursor - _activeHS->_region.center();
++		if (ABS(delta.x) < 40 && ABS(delta.y) < 40) {
++			LuaObjects objects;
++			objects.add(1);
++			objects.add(_activeHS->_objId);
++			objects.add(0);
++			LuaBase::instance()->callback("mouseCommand", objects);
++			_activeHS = nullptr;
++			return;
++		}
++	}
++
++	_lastCursor = cursor;
++
++	if (_ctrlMode == Dialog && button > 0) {
++		int dialog = inBox(cursor), click = (button == 2) ? 2 : 1;
++		LuaObjects objects;
++		objects.add(dialog);
++		objects.add(click);
++		LuaBase::instance()->callback("dialogSelect", objects);
++	} else if (_ctrlMode == Inventory && button > 0) {
++		for (int j = 0, idx = 0; j < _rows; j++) {
++			for (int i = 0; i < _cols; i++, idx++) {
++				if (idx >= (int)_inventory.size())
++					break;
++				if (cursor.x >= _x0 + i * _w && cursor.x < _x0 + (i + 1) * _w &&
++				    cursor.y >= _y0 + j * _h && cursor.y < _y0 + (j + 1) * _h) {
++					LuaObjects objects;
++					objects.add(_inventory[idx]._id.c_str());
++					objects.add(button);
++					LuaBase::instance()->callback("mouseInventory", objects);
++					return;
++				}
++			}
++		}
++		LuaObjects objects;
++		objects.add("outside");
++		objects.add(button);
++		LuaBase::instance()->callback("mouseInventory", objects);
++		return;
++	}
++
++	// ------- click on hot spots ------------
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++	int setup = g_grim->getCurrSet()->getSetup();
++	for (uint i = 0; i < hotspots.size(); i++) {
++		MouseHotspot &hs = hotspots[i];
++		if (_ctrlMode == Options && hs._region.contains(cursor)) {
++			LuaObjects objects;
++			objects.add(activeSet().c_str());
++			objects.add(hs._id.c_str());
++			objects.add(hs._setup);
++			objects.add(button);
++			LuaBase::instance()->callback("mouseOpt", objects);
++			return;
++		}
++
++		if (hs._setup == setup && hs._region.contains(cursor) && !climbing) {
++			// special mode calls
++			if ((_ctrlMode == Dialog && hs._type >= 20) ||
++			    (_ctrlMode == Special && hs._type >= 10 && hs._type < 20) ||
++			    (_ctrlMode == Linear && hs._type >= 10 && hs._type < 20)) {
++				if (button == 0 && _ctrlMode != Special)
++					continue;
++				LuaObjects objects;
++				objects.add(hs._id.c_str());
++				objects.add(button);
++				LuaBase::instance()->callback("mouseSpecial", objects);
++				return;
++			}
++			// normal mode
++			int gid = hs._objId;
++			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
++			    hs._type >= 10 || hs._type == 3 || button == 0)
++				continue;
++			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active)
++				continue;
++			LuaObjects objects;
++			objects.add(button);
++			objects.add(gid);
++			objects.add(doubleClick ? 2 : 1);
++			LuaBase::instance()->callback("mouseCommand", objects);
++			return;
++		}
++	}
++	if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
++		for (uint i = 0; i < hotspots.size(); i++) {
++			MouseHotspot &hs = hotspots[i];
++			if (hs._setup == setup && hs._region.contains(cursor) && !climbing) {
++				// normal mode walkbox
++				int gid = hs._objId;
++				if (hs._type == 3 && (gid <= 0 || (gid < (int)_hotobject.size() && _hotobject[gid]._active))) {
++					Common::Array<float> buf;
++					for (uint k = 0; k < hs._path.size(); k++) {
++						buf.push_back(hs._path[k].x());
++						buf.push_back(hs._path[k].y());
++						buf.push_back(hs._path[k].z());
++					}
++					LuaObjects objects;
++					objects.add(button);
++					objects.add(doubleClick ? 1 : 0);
++					objects.add(buf.data(), buf.size());
++					LuaBase::instance()->callback("mouseWalk", objects);
++					return;
++				}
++			}
++		}
++
++		if (_ctrlMode == Normal)
++			freeClick(cursor, button, doubleClick, climbing);
++		else {
++			LuaObjects objects;
++			objects.add(button);
++			LuaBase::instance()->callback("mouseNowalk", objects);
++		}
++	}
++
++	if (_ctrlMode == Linear && button > 0) {
++		Actor *manny = getManny();
++		if (!manny)
++			return;
++		Math::Vector3d r0, r1;
++		raycast(cursor.x, cursor.y, r0, r1);
++		Math::Vector3d p0 = manny->getPos(), p1 = _axis;
++		r0 -= _axis * _offset;
++		r1 -= _axis * _offset;
++		float s = lineLineDist(p0, p1, r0, r1);
++
++		LuaObjects objects;
++		objects.add(p0.dotProduct(_axis) + s);
++		objects.add(s);
++		objects.add(button);
++		LuaBase::instance()->callback("linearMove", objects);
++	}
++}
++
++void HotspotMan::hover(const Common::Point &pos) {
++	if (!g_grim->getCurrSet())
++		return;
++	update();
++	_lastCursor = pos;
++	_hoverName.clear();
++	Cursor *cursor = g_grim->getCursor();
++	cursor->setPersistent(0, -1);
++	cursor->setCursor(0);
++
++	if (_cutScene > 0 && _ctrlMode != Dialog && _ctrlMode != Options) {
++		cursor->setCursor(7);
++		return;
++	}
++
++	int setup = g_grim->getCurrSet()->getSetup();
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++
++	int select = 0;
++	for (uint i = 0; i < hotspots.size(); i++) {
++		if (_activeHS)
++			continue;
++		if ((hotspots[i]._setup == setup || _ctrlMode == Options) &&
++		    hotspots[i]._region.contains(pos)) {
++			int oid = hotspots[i]._objId;
++			if (oid >= 0 && (oid >= (int)_hotobject.size() || !_hotobject[oid]._active))
++				continue;
++			int type = hotspots[i]._type;
++			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
++				if (type >= 10)
++					continue;
++				cursor->setCursor((type == 2 || type == 3) ? 2 : 1);
++				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
++				_hoverName = (desc == "_") ? Common::String() : desc;
++			} else if (_ctrlMode == Dialog) {
++				if (type < 20 || type >= 30)
++					continue;
++				cursor->setCursor(type - 20);
++			} else if (_ctrlMode == Special || _ctrlMode == Linear) {
++				if (type < 10 || type >= 20)
++					continue;
++				cursor->setCursor(type - 10);
++			} else if (_ctrlMode == Options) {
++				if (type < 30 || type >= 40)
++					continue;
++				cursor->setCursor(type - 30);
++				select = hotspots[i]._setup;
++			}
++		}
++	}
++
++	if (_ctrlMode == Dialog) {
++		int dialog = inBox(pos), click = 0;
++		LuaObjects objects;
++		objects.add(dialog);
++		objects.add(click);
++		LuaBase::instance()->callback("dialogSelect", objects);
++	} else if (_ctrlMode == Inventory) {
++		for (int j = 0, idx = 0; j < _rows; j++) {
++			for (int i = 0; i < _cols; i++, idx++) {
++				if (idx >= (int)_inventory.size())
++					break;
++				if (pos.x >= _x0 + i * _w && pos.x < _x0 + (i + 1) * _w &&
++				    pos.y >= _y0 + j * _h && pos.y < _y0 + (j + 1) * _h) {
++					cursor->setCursor(1);
++				}
++			}
++		}
++	} else if (_ctrlMode == Options) {
++		LuaObjects objects;
++		objects.add(activeSet().c_str());
++		objects.add(select);
++		LuaBase::instance()->callback("mouseHover", objects);
++	}
++}
++
++Common::Point HotspotMan::mannyPos2D(float zOffset) {
++	int x = 0, y = 0;
++	Actor *manny = getManny();
++	if (g_grim->getCurrSet() && manny) {
++		Math::Vector3d p = manny->getPos();
++		p += Math::Vector3d(0, 0, zOffset);
++		worldToScreen(p, x, y);
++	}
++	return Common::Point(x, y);
++}
++
++void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
++	Math::Vector3d r0, r1;
++	if (!raycast(cursor.x, cursor.y, r0, r1))
++		return;
++
++	// climbing
++	if (climbing) {
++		Actor *manny = getManny();
++		if (!manny)
++			return;
++		r0 += Math::Vector3d(0, 0, -0.25);
++		r1 += Math::Vector3d(0, 0, -0.25); // center on Manny's body, not his feet
++		Math::Vector3d p0 = manny->getPos(), p1 = Math::Vector3d(0, 0, 1);
++		float s = lineLineDist(p0, p1, r0, r1);
++
++		LuaObjects objects;
++		objects.add(p0.z() + s);
++		objects.add(s);
++		LuaBase::instance()->callback("climbTowards", objects);
++		return;
++	}
++
++	// walking: the first walk sector the ray hits, lowering it a little at a
++	// time (up to 1.5 units) so a click just above the floor still counts
++	Set *set = g_grim->getCurrSet();
++	for (int i = 0; i < 50; i++) {
++		for (int s = 0; s < set->getSectorCount(); s++) {
++			Sector *sector = set->getSectorBase(s);
++			if ((sector->getType() & Sector::WalkType) != Sector::WalkType)
++				continue;
++			Math::Vector3d v;
++			if (!sector->raycast(r0, r1, v))
++				continue;
++			if (sector->isPointInSector(v)) {
++				LuaObjects objects;
++				objects.add(button);
++				objects.add(doubleClick ? 1 : 0);
++				float p[3] = { v.x(), v.y(), v.z() };
++				objects.add(p, 3);
++				LuaBase::instance()->callback("mouseWalk", objects);
++				return;
++			}
++		}
++		r0.z() -= 0.03f;
++		r1.z() -= 0.03f;
++	}
++	LuaObjects objects;
++	objects.add(button);
++	objects.add(doubleClick ? 1 : 0);
++	LuaBase::instance()->callback("mouseUseInHand", objects);
++}
++
++bool HotspotMan::restoreState(SaveGame *savedState) {
++	// A save made without Grim Mouse has no HOTM section: start from the
++	// hotspot files and let the scripts register their objects again.
++	if (!savedState->hasSection('HOTM')) {
++		warning("Grim Mouse: this save has no hotspot state");
++		_hotobject.clear();
++		_ctrlMode = Normal;
++		initialize();
++		return false;
++	}
++	savedState->beginSection('HOTM');
++	_ctrlMode = savedState->readLESint32();
++	_rows = savedState->readLESint32();
++	_cols = savedState->readLESint32();
++	_x0 = savedState->readLESint32();
++	_y0 = savedState->readLESint32();
++	_w = savedState->readLESint32();
++	_h = savedState->readLESint32();
++	_axis = savedState->readVector3d();
++	_offset = savedState->readFloat();
++	_curScene = savedState->readString();
++
++	int num = savedState->readLESint32();
++	_hotobject.clear();
++	for (int i = 0; i < num; i++) {
++		HotObject hs;
++		hs._id = savedState->readString();
++		hs._desc = savedState->readString();
++		hs._pos = savedState->readVector3d();
++		hs._rect.top = savedState->readLEUint16();
++		hs._rect.left = savedState->readLEUint16();
++		hs._rect.bottom = savedState->readLEUint16();
++		hs._rect.right = savedState->readLEUint16();
++		hs._active = savedState->readBool();
++		_hotobject.push_back(hs);
++	}
++	int numSets = savedState->readLESint32();
++	for (int i = 0; i < numSets; i++) {
++		Common::String setname = savedState->readString();
++		int numSpots = savedState->readLESint32();
++		_hotspots[setname].clear();
++		for (int j = 0; j < numSpots; j++) {
++			MouseHotspot hs;
++			hs._id = savedState->readString();
++			hs._desc = savedState->readString();
++			int pathlen = savedState->readLESint32();
++			for (int k = 0; k < pathlen; k++)
++				hs._path.push_back(savedState->readVector3d());
++			int polylen = savedState->readLESint32();
++			for (int k = 0; k < polylen; k++) {
++				int x = (int16)savedState->readLEUint16();
++				int y = (int16)savedState->readLEUint16();
++				hs._region._pnts.push_back(Common::Point(x, y));
++			}
++			hs._setup = savedState->readLESint32();
++			hs._type = savedState->readLESint32();
++			hs._objId = savedState->readLESint32();
++			_hotspots[setname].push_back(hs);
++		}
++	}
++	savedState->endSection();
++	_icons.clear();
++	_activeHS = nullptr;
++	loadFlashBitmaps();
++	return true;
++}
++
++void HotspotMan::saveState(SaveGame *savedState) {
++	savedState->beginSection('HOTM');
++	savedState->writeLESint32(_ctrlMode);
++	savedState->writeLESint32(_rows);
++	savedState->writeLESint32(_cols);
++	savedState->writeLESint32(_x0);
++	savedState->writeLESint32(_y0);
++	savedState->writeLESint32(_w);
++	savedState->writeLESint32(_h);
++	savedState->writeVector3d(_axis);
++	savedState->writeFloat(_offset);
++	savedState->writeString(_curScene);
++
++	savedState->writeLESint32(_hotobject.size());
++	for (uint i = 0; i < _hotobject.size(); i++) {
++		HotObject &hs = _hotobject[i];
++		savedState->writeString(hs._id);
++		savedState->writeString(hs._desc);
++		savedState->writeVector3d(hs._pos);
++		savedState->writeLEUint16(hs._rect.top);
++		savedState->writeLEUint16(hs._rect.left);
++		savedState->writeLEUint16(hs._rect.bottom);
++		savedState->writeLEUint16(hs._rect.right);
++		savedState->writeBool(hs._active);
++	}
++	savedState->writeLESint32(_hotspots.size());
++	for (HotDict::iterator it = _hotspots.begin(); it != _hotspots.end(); ++it) {
++		savedState->writeString(it->_key);
++		Common::Array<MouseHotspot> &hotspots = it->_value;
++		savedState->writeLESint32(hotspots.size());
++		for (uint i = 0; i < hotspots.size(); i++) {
++			MouseHotspot &hs = hotspots[i];
++			savedState->writeString(hs._id);
++			savedState->writeString(hs._desc);
++			savedState->writeLESint32(hs._path.size());
++			for (uint j = 0; j < hs._path.size(); j++)
++				savedState->writeVector3d(hs._path[j]);
++			savedState->writeLESint32(hs._region._pnts.size());
++			for (uint j = 0; j < hs._region._pnts.size(); j++) {
++				savedState->writeLEUint16(hs._region._pnts[j].x);
++				savedState->writeLEUint16(hs._region._pnts[j].y);
++			}
++			savedState->writeLESint32(hs._setup);
++			savedState->writeLESint32(hs._type);
++			savedState->writeLESint32(hs._objId);
++		}
++	}
++	savedState->endSection();
++}
++
++int HotspotMan::inBox(const Common::Point &p) {
++	for (int j = 0; j < _rows; j++) {
++		for (int i = 0; i < _cols; i++) {
++			if (p.x >= _x0 + i * _w && p.x < _x0 + (i + 1) * _w &&
++			    p.y >= _y0 + j * _h && p.y < _y0 + (j + 1) * _h)
++				return j * _cols + i + 1;
++		}
++	}
++	return 0;
++}
++
++// Hotspots of type 4 follow an actor (named by the hotspot's description).
++void HotspotMan::update() {
++	if (!g_grim->getCurrSet())
++		return;
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++	for (uint i = 0; i < hotspots.size(); i++) {
++		if (hotspots[i]._type != 4)
++			continue;
++		for (Actor *a : g_grim->getActiveActors()) {
++			if (a->getName() == hotspots[i]._desc && hotspots[i]._path.size() == 1) {
++				int x = 0, y = 0;
++				Math::Vector3d trans = hotspots[i]._path[0];
++				Math::Quaternion quat = a->getRotationQuat();
++				Math::Quaternion quatInv(-quat.x(), -quat.y(), -quat.z(), quat.w());
++				quatInv.toMatrix().transform(&trans, true);
++				Math::Vector3d pos = a->getPos() + trans;
++				worldToScreen(pos, x, y);
++				hotspots[i]._region.move(Common::Point(x, y));
++			}
++		}
++	}
++}
++
++void HotspotMan::updateHotspot(const Common::String &id, const Math::Vector3d &pos, int vis) {
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++	for (uint i = 0; i < hotspots.size(); i++) {
++		if (hotspots[i]._id == id) {
++			int x = (int)pos.x(), y = (int)pos.y();
++			if (vis > 0)
++				worldToScreen(pos, x, y);
++			hotspots[i]._region.move(Common::Point(x, y));
++		}
++	}
++	restoreCursor();
++}
++
++void HotspotMan::resetInventory() {
++	_inventory.clear();
++}
++
++void HotspotMan::restoreCursor() {
++	_activeHS = nullptr;
++	if (g_grim->getCursor())
++		g_grim->getCursor()->setPersistent(1, -1);
++	hover(_lastCursor);
++}
++
++void HotspotMan::renameHotspot(int num, const Common::String &name) {
++	if (num < 0 || num >= (int)_hotobject.size())
++		return;
++	Common::String id = name, desc = name;
++	for (uint i = 1; i < id.size(); i++) {
++		if (id[i] == '/') {
++			id.erase(i);
++			desc.erase(0, i + 1);
++			break;
++		}
++	}
++
++	int n = 0;
++	for (uint i = 0; i < _hotobject.size(); i++) {
++		if (_hotobject[i]._id.hasPrefix(id))
++			n++;
++	}
++	if (n > 0)
++		id += Common::String::format("_%d", n);
++	_hotobject[num]._id = id;
++	_hotobject[num]._desc = desc;
++
++	// re-link to hotspots
++	for (HotDict::iterator it = _hotspots.begin(); it != _hotspots.end(); ++it) {
++		Common::Array<MouseHotspot> &hotspots = it->_value;
++		for (uint i = 0; i < hotspots.size(); i++) {
++			if (hotspots[i]._id == id)
++				hotspots[i]._objId = num;
++		}
++	}
++}
++
++void HotspotMan::addInventory(const Common::String &id, const Common::String &pic) {
++	InventoryItem it;
++	it._id = id;
++	it._bmp = _icons.getValOrDefault(pic, nullptr);
++	if (!it._bmp) {
++		it._bmp = Bitmap::create(pic + ".tga");
++		if (it._bmp) {
++			it._bmp->_data->load();
++			it._bmp->_data->_hasTransparency = true;
++		}
++		_icons[pic] = it._bmp;
++	}
++	_inventory.push_back(it);
++}
++
++} // end of namespace Grim
+diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
+new file mode 100644
+--- /dev/null
++++ b/engines/grim/hotspotman.h
+@@ -0,0 +1,170 @@
++/* ScummVM - Graphic Adventure Engine
++ *
++ * ScummVM is the legal property of its developers, whose names
++ * are too numerous to list here. Please refer to the COPYRIGHT
++ * file distributed with this source distribution.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
++ *
++ */
++
++/*
++ * Grim Mouse: point-and-click controls for Grim Fandango.
++ * Originally by Tobias Pfaff for ResidualVM (2014, GPL-2.0-or-later,
++ * https://github.com/tobiaspfaff/grim_mouse). Ported to ScummVM 2026.4.0 for
++ * PointyClicky (2026): the in-engine hotspot editor and the Android gestures
++ * are left out, and the screen projection no longer depends on the renderer.
++ * Active only with the config key grim_mouse=true (see GrimEngine::isGrimMouse).
++ */
++
++#ifndef GRIM_HOTSPOTMAN_H
++#define GRIM_HOTSPOTMAN_H
++
++#include "common/rect.h"
++#include "common/array.h"
++#include "common/hashmap.h"
++#include "common/hash-str.h"
++#include "common/events.h"
++#include "math/vector3d.h"
++
++#include "engines/grim/color.h"
++
++namespace Grim {
++
++class Bitmap;
++class SaveGame;
++
++struct HotPolygon {
++	Common::Array<Common::Point> _pnts;
++
++	void draw(const Color &col);
++	bool contains(const Common::Point &pos) const;
++	void move(const Common::Point &center);
++	Common::Point center() const;
++	void fixBorders();
++};
++
++struct HotObject {
++	Common::String _id, _desc;
++	Math::Vector3d _pos;
++	Common::Rect _rect;
++	bool _active;
++};
++
++struct MouseHotspot {
++	Common::String _id, _desc;
++	HotPolygon _region;
++	int _setup;
++	int _type;
++	int _objId;
++	Common::Array<Math::Vector3d> _path;
++};
++
++struct InventoryItem {
++	Common::String _id;
++	Bitmap *_bmp;
++};
++
++class HotspotMan {
++public:
++	HotspotMan();
++	~HotspotMan();
++
++	enum ControlMode { Normal = 0, Dialog = 1, Special = 2, Linear = 3, Inventory = 4, NoWalk = 5, Options = 6, Passive = 10 };
++
++	int addHotspot(const Common::String &name, const Math::Vector3d &pos, const Common::String &scene);
++	void disableAll();
++	HotObject *getObject(int idx) { return idx >= 0 && idx < (int)_hotobject.size() ? &_hotobject[idx] : nullptr; }
++
++	void initialize();
++	void event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick);
++	void hover(const Common::Point &cursor);
++	void updatePerspective();
++	void drawActive();
++	bool restoreState(SaveGame *savedState);
++	void saveState(SaveGame *savedState);
++	void switchMode(int ctrlMode) { _ctrlMode = ctrlMode; }
++	void setupDialog(int x0, int y0, int w, int h, int rows, int cols) { _x0 = x0; _y0 = y0; _w = w; _h = h; _cols = cols; _rows = rows; }
++	void notifyWalk(int id) {}
++	void update();
++	void resetInventory();
++	void addInventory(const Common::String &id, const Common::String &pic);
++	void updateHotspot(const Common::String &id, const Math::Vector3d &pos, int vis);
++	int getCtrlMode() const { return _ctrlMode; }
++	bool isDialog() const { return _cutScene > 0 || _ctrlMode == Dialog || _ctrlMode == Passive; }
++	void setAxis(const Math::Vector3d &a, float offset) { _axis = a; _offset = offset; }
++	void cutSceneMode(int mode);
++	void flashHotspots();
++	void renameHotspot(int id, const Common::String &name);
++	void setOptionMode(const Common::String &name) { _curOption = name; }
++	const Common::String &getOptionMode() const { return _curOption; }
++	Common::Point mannyPos2D(float zOffset);
++
++	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
++	const Common::String &getHoverName() const { return _hoverName; }
++
++	/**
++	 * Grim's camera, independent of the renderer (OpenGL, OpenGL ES, TinyGL):
++	 * the current set's setup projected exactly as GfxOpenGLS does it, in
++	 * 640x480 game pixels.
++	 */
++	static bool worldToScreen(const Math::Vector3d &pos, int &x, int &y);
++	static bool raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1);
++
++protected:
++	int inBox(const Common::Point &p);
++	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
++	void loadFlashBitmaps();
++	void restoreCursor();
++	Common::String activeSet();
++	Common::Array<MouseHotspot> &hotspotsOf(const Common::String &set);
++
++	int _cutScene;
++
++	// dialog support
++	int _ctrlMode, _rows, _cols;
++	int _x0, _y0, _w, _h;
++
++	// inventory
++	Common::HashMap<Common::String, Bitmap *> _icons;
++	Common::Array<InventoryItem> _inventory;
++
++	// linear mode
++	Math::Vector3d _axis;
++	float _offset;
++
++	bool _initialized;
++	typedef Common::HashMap<Common::String, Common::Array<MouseHotspot> > HotDict;
++	HotDict _hotspots;
++	Common::String _curScene, _curOption;
++	Common::Array<HotObject> _hotobject;
++	Common::Point _lastCursor;
++	Common::String _hoverName;
++
++	// hotspot display
++	bool _flashHS;
++	uint32 _flashStart;
++	Bitmap *_flashBitmaps[8];
++
++	// active hotspot
++	MouseHotspot *_activeHS;
++
++	// grim_mouse_debug: outline the hotspots; grim_mouse_names: label the one under the pointer
++	bool _showDebug, _showNames;
++};
++
++} // end of namespace Grim
++
++#endif
+diff --git a/engines/grim/lua.cpp b/engines/grim/lua.cpp
+--- a/engines/grim/lua.cpp
++++ b/engines/grim/lua.cpp
+@@ -82,6 +82,14 @@
+ 	_objects.push_back(obj);
+ }
+ 
++void LuaObjects::add(const float *ar, int len) {
++	Obj obj;
++	obj._type = Obj::Array;
++	obj._elements = len;
++	obj._value.array = ar;
++	_objects.push_back(obj);
++}
++
+ void LuaObjects::pushObjects() const {
+ 	for (Common::List<Obj>::const_iterator i = _objects.begin(); i != _objects.end(); ++i) {
+ 		const Obj &o = *i;
+@@ -98,6 +106,18 @@
+ 			case Obj::String:
+ 				lua_pushstring(o._value.string);
+ 				break;
++			case Obj::Array: {
++				lua_pushnumber(o._elements);
++				lua_Object tbl = lua_createtable();
++				for (int k = 0; k < o._elements; k++) {
++					lua_pushobject(tbl);
++					lua_pushnumber(k);
++					lua_pushnumber(o._value.array[k]);
++					lua_settable();
++				}
++				lua_pushobject(tbl);
++				break;
++			}
+ 		}
+ 	}
+ }
+@@ -310,6 +330,19 @@
+ 	return result;
+ }
+ 
++int LuaBase::queryVariable(const Common::String &name, bool direct) {
++	int num = -1;
++	lua_beginblock();
++	if (direct) {
++		num = (int)lua_getnumber(lua_getglobal(name.c_str()));
++	} else {
++		lua_dostring(("return " + name).c_str());
++		num = (int)lua_getnumber(lua_getresult(1));
++	}
++	lua_endblock();
++	return num;
++}
++
+ bool LuaBase::callback(const char *name) {
+ 	LuaObjects o;
+ 	return callback(name, o);
+diff --git a/engines/grim/lua.h b/engines/grim/lua.h
+--- a/engines/grim/lua.h
++++ b/engines/grim/lua.h
+@@ -76,6 +76,8 @@
+ 	void add(const PoolObjectBase *obj);
+ 	void add(const char *str);
+ 	void addNil();
++	/** Grim Mouse: a count, then a table {[0]=ar[0], ...} (the array is not copied). */
++	void add(const float *ar, int len);
+ 
+ private:
+ 	/**
+@@ -91,13 +93,16 @@
+ 			Nil,
+ 			Number,
+ 			Object,
+-			String
++			String,
++			Array
+ 		} _type;
+ 		union {
+ 			float number;
+ 			const PoolObjectBase *object;
+ 			const char *string;
++			const float *array;
+ 		} _value;
++		int _elements;
+ 	};
+ 	Common::List<Obj> _objects;
+ 
+@@ -137,6 +142,8 @@
+ 	 * @param name The name of the function.
+ 	 */
+ 	bool callback(const char *name);
++	/** Grim Mouse: a global's number (direct) or any Lua expression's ("return " + name). */
++	int queryVariable(const Common::String &name, bool direct);
+ 	/**
+ 	 * Call a Lua function in the system table passing the specified arguments.
+ 	 *
+diff --git a/engines/grim/lua_v1.cpp b/engines/grim/lua_v1.cpp
+--- a/engines/grim/lua_v1.cpp
++++ b/engines/grim/lua_v1.cpp
+@@ -33,6 +33,7 @@
+ #include "engines/grim/lua_v1.h"
+ #include "engines/grim/registry.h"
+ #include "engines/grim/grim.h"
++#include "engines/grim/hotspotman.h"
+ #include "engines/grim/savegame.h"
+ #include "engines/grim/resource.h"
+ #include "engines/grim/bitmap.h"
+@@ -405,6 +406,19 @@
+ 	lua_Object worldY = lua_getparam(2);
+ 	lua_Object worldZ = lua_getparam(3);
+ 	if (!lua_isnumber(worldX) || !lua_isnumber(worldY) || !lua_isnumber(worldZ)) {
++		return;
++	}
++	if (g_grim->isGrimMouse()) {
++		// Grim Mouse's scripts place their markers with this: the set's own
++		// camera, whatever the renderer last drew
++		int x = 0, y = 0;
++		if (HotspotMan::worldToScreen(Math::Vector3d(lua_getnumber(worldX), lua_getnumber(worldY), lua_getnumber(worldZ)), x, y)) {
++			lua_pushnumber(x);
++			lua_pushnumber(y);
++		} else {
++			lua_pushnil();
++			lua_pushnil();
++		}
+ 		return;
+ 	}
+ 	Math::Vector4d worldVec(lua_getnumber(worldX), lua_getnumber(worldY), lua_getnumber(worldZ), 1.0f);
+@@ -1010,6 +1024,18 @@
+ 	{ "RestoreIMuse", LUA_OPCODE(Lua_V1, RestoreIMuse) },
+ 	{ "GetMemoryUsage", LUA_OPCODE(Lua_V1, GetMemoryUsage) },
+ 	{ "dofile", LUA_OPCODE(Lua_V1, new_dofile) },
++	// Grim Mouse (lua_v1_mouse.cpp)
++	{ "RegisterHotspot", LUA_OPCODE(Lua_V1, RegisterHotspot) },
++	{ "ActivateHotspot", LUA_OPCODE(Lua_V1, ActivateHotspot) },
++	{ "UpdateHotspot", LUA_OPCODE(Lua_V1, MouseUpdateHotspot) },
++	{ "SwitchControlMode", LUA_OPCODE(Lua_V1, SwitchControlMode) },
++	{ "NotifyWalk", LUA_OPCODE(Lua_V1, NotifyWalk) },
++	{ "RegisterInventory", LUA_OPCODE(Lua_V1, RegisterInventory) },
++	{ "MouseDown", LUA_OPCODE(Lua_V1, MouseDown) },
++	{ "InteractMode", LUA_OPCODE(Lua_V1, InteractMode) },
++	{ "RenameHotspot", LUA_OPCODE(Lua_V1, RenameHotspot) },
++	{ "GetControlMode", LUA_OPCODE(Lua_V1, GetControlMode) },
++	{ "SetOptionMode", LUA_OPCODE(Lua_V1, SetOptionMode) },
+ };
+ 
+ static struct luaL_reg grimTextOpcodes[] = {
+diff --git a/engines/grim/lua_v1.h b/engines/grim/lua_v1.h
+--- a/engines/grim/lua_v1.h
++++ b/engines/grim/lua_v1.h
+@@ -285,6 +285,19 @@
+ 	DECLARE_LUA_OPCODE(GetMemoryUsage);
+ 	DECLARE_LUA_OPCODE(GetFontDimensions);
+ 	DECLARE_LUA_OPCODE(PurgeText);
++
++	// Grim Mouse (lua_v1_mouse.cpp)
++	DECLARE_LUA_OPCODE(RegisterHotspot);
++	DECLARE_LUA_OPCODE(ActivateHotspot);
++	DECLARE_LUA_OPCODE(MouseUpdateHotspot);
++	DECLARE_LUA_OPCODE(SwitchControlMode);
++	DECLARE_LUA_OPCODE(NotifyWalk);
++	DECLARE_LUA_OPCODE(RegisterInventory);
++	DECLARE_LUA_OPCODE(MouseDown);
++	DECLARE_LUA_OPCODE(InteractMode);
++	DECLARE_LUA_OPCODE(RenameHotspot);
++	DECLARE_LUA_OPCODE(GetControlMode);
++	DECLARE_LUA_OPCODE(SetOptionMode);
+ };
+ 
+ }
+diff --git a/engines/grim/lua_v1_actor.cpp b/engines/grim/lua_v1_actor.cpp
+--- a/engines/grim/lua_v1_actor.cpp
++++ b/engines/grim/lua_v1_actor.cpp
+@@ -142,6 +142,12 @@
+ 	if (!findCostume(costumeObj, actor, &costume))
+ 		return;
+ 
++	// Grim Mouse: a 4th argument walks the actor backwards (its ladders)
++	if (g_grim->isGrimMouse()) {
++		lua_Object bwdObj = lua_getparam(4);
++		actor->setWalkBwd(lua_isnumber(bwdObj) && lua_getnumber(bwdObj) != 0);
++	}
++
+ 	actor->setWalkChore(chore, costume);
+ }
+ 
+@@ -312,7 +318,10 @@
+ 	float x = lua_getnumber(xObj);
+ 	float y = lua_getnumber(yObj);
+ 	float z = lua_getnumber(zObj);
+-	actor->setPos(Math::Vector3d(x, y, z));
++	// Grim Mouse: a non-zero 5th argument moves the actor without ending its walk
++	lua_Object keepObj = lua_getparam(5);
++	bool keepWalking = g_grim->isGrimMouse() && lua_isnumber(keepObj) && lua_getnumber(keepObj) != 0;
++	actor->setPos(Math::Vector3d(x, y, z), keepWalking);
+ }
+ 
+ void Lua_V1::GetActorPos() {
+@@ -581,7 +590,15 @@
+ 	float tz = lua_getnumber(tzObj);
+ 	Math::Vector3d tVec(tx, ty, tz);*/
+ 
+-	actor->walkTo(destVec);
++	// Grim Mouse: an 8th argument of 0 means "only if there is a path"
++	// (a click on an unreachable spot must not drag Manny through walls)
++	bool force = true;
++	if (g_grim->isGrimMouse()) {
++		lua_Object forceObj = lua_getparam(8);
++		if (lua_isnumber(forceObj) && lua_getnumber(forceObj) == 0)
++			force = false;
++	}
++	actor->walkTo(destVec, force);
+ }
+ 
+ /* This draw an actor to an offscreen buffer.
+diff --git a/engines/grim/lua_v1_graphics.cpp b/engines/grim/lua_v1_graphics.cpp
+--- a/engines/grim/lua_v1_graphics.cpp
++++ b/engines/grim/lua_v1_graphics.cpp
+@@ -41,7 +41,17 @@
+ 	}
+ 	const char *bitmapName = lua_getstring(nameObj);
+ 	Bitmap *b = Bitmap::create(bitmapName);
++	if (!b) {
++		lua_pushnil();
++		return;
++	}
+ 	lua_pushusertag(b->getId(), MKTAG('V','B','U','F'));
++	// Grim Mouse: GetImage(name, 1) loads a TGA with its alpha (the inventory icons)
++	lua_Object transObj = lua_getparam(2);
++	if (g_grim->isGrimMouse() && lua_isnumber(transObj) && lua_getnumber(transObj) > 0) {
++		b->_data->load();
++		b->_data->_hasTransparency = true;
++	}
+ }
+ 
+ void Lua_V1::FreeImage() {
+@@ -506,6 +516,8 @@
+ }
+ 
+ void Lua_V1::Display() {
++	// Grim Mouse: screens the scripts draw themselves (the inventory) get the cursor too
++	g_grim->drawCursor();
+ 	if (g_grim->getFlipEnable()) {
+ 		g_driver->flipBuffer();
+ 	}
+diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
+new file mode 100644
+--- /dev/null
++++ b/engines/grim/lua_v1_mouse.cpp
+@@ -0,0 +1,167 @@
++/* ScummVM - Graphic Adventure Engine
++ *
++ * ScummVM is the legal property of its developers, whose names
++ * are too numerous to list here. Please refer to the COPYRIGHT
++ * file distributed with this source distribution.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
++ *
++ */
++
++/*
++ * The Lua opcodes Grim Mouse's scripts (mouse.lua and the patched game
++ * scripts in grim-mouse.lab) call. Originally by Tobias Pfaff for ResidualVM
++ * (2014, GPL-2.0-or-later); ported to ScummVM for PointyClicky. Without
++ * grim_mouse=true there is no hotspot manager and they do nothing (the
++ * stock scripts never call them).
++ */
++
++#include "common/events.h"
++#include "common/system.h"
++
++#include "engines/grim/lua_v1.h"
++#include "engines/grim/grim.h"
++#include "engines/grim/hotspotman.h"
++
++#include "engines/grim/lua/lauxlib.h"
++#include "engines/grim/lua/lua.h"
++
++namespace Grim {
++
++static HotspotMan *hotspots() {
++	return g_grim ? g_grim->getHotspotMan() : nullptr;
++}
++
++void Lua_V1::RegisterHotspot() {
++	HotspotMan *hm = hotspots();
++	if (!hm) {
++		lua_pushnumber(-1);
++		return;
++	}
++	Math::Vector3d pos(lua_getnumber(lua_getparam(2)),
++	                   lua_getnumber(lua_getparam(3)),
++	                   lua_getnumber(lua_getparam(4)));
++	const char *name = lua_getstring(lua_getparam(1));
++	const char *scene = lua_getstring(lua_getparam(5));
++	int n = hm->addHotspot(name ? name : "", pos, scene ? scene : "");
++	lua_pushnumber(n);
++}
++
++void Lua_V1::ActivateHotspot() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	int num = (int)lua_getnumber(lua_getparam(1));
++	if (num < 0) {
++		hm->disableAll();
++	} else if (HotObject *hs = hm->getObject(num)) {
++		hs->_active = getbool(2);
++	}
++}
++
++void Lua_V1::MouseUpdateHotspot() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	const char *id = lua_getstring(lua_getparam(1));
++	Math::Vector3d pos(lua_getnumber(lua_getparam(2)),
++	                   lua_getnumber(lua_getparam(3)),
++	                   lua_getnumber(lua_getparam(4)));
++	int visible = (int)lua_getnumber(lua_getparam(5));
++	hm->updateHotspot(id ? id : "", pos, visible);
++}
++
++void Lua_V1::SwitchControlMode() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	int mode = (int)lua_getnumber(lua_getparam(1));
++	hm->switchMode(mode);
++	if (mode == HotspotMan::Dialog || mode == HotspotMan::NoWalk) {
++		if (!lua_isnumber(lua_getparam(2)))
++			return;
++		int lines = (int)lua_getnumber(lua_getparam(2));
++		int x0 = (int)lua_getnumber(lua_getparam(3));
++		int y0 = (int)lua_getnumber(lua_getparam(4));
++		int width = (int)lua_getnumber(lua_getparam(5));
++		int height = (int)lua_getnumber(lua_getparam(6));
++		hm->setupDialog(x0, y0, width, height, lines, 1);
++	} else if (mode == HotspotMan::Linear) {
++		if (!lua_isnumber(lua_getparam(2)))
++			return;
++		Math::Vector3d axis(lua_getnumber(lua_getparam(2)),
++		                    lua_getnumber(lua_getparam(3)),
++		                    lua_getnumber(lua_getparam(4)));
++		hm->setAxis(axis, lua_getnumber(lua_getparam(5)));
++	} else if (mode == HotspotMan::Inventory) {
++		hm->setupDialog(20, 40, 100, 100, 4, 6);
++	}
++}
++
++void Lua_V1::NotifyWalk() {
++	HotspotMan *hm = hotspots();
++	if (hm)
++		hm->notifyWalk((int)lua_getnumber(lua_getparam(1)));
++}
++
++void Lua_V1::RegisterInventory() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	const char *id = lua_getstring(lua_getparam(1));
++	if (!id)
++		return;
++	if (!strcmp(id, "reset")) {
++		hm->resetInventory();
++	} else {
++		const char *pic = lua_getstring(lua_getparam(2));
++		hm->addInventory(id, pic ? pic : "");
++	}
++}
++
++void Lua_V1::MouseDown() {
++	lua_pushnumber(g_system->getEventManager()->getButtonState());
++}
++
++void Lua_V1::InteractMode() {
++}
++
++void Lua_V1::RenameHotspot() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	int id = (int)lua_getnumber(lua_getparam(1));
++	const char *name = lua_getstring(lua_getparam(2));
++	hm->renameHotspot(id, name ? name : "");
++}
++
++void Lua_V1::GetControlMode() {
++	HotspotMan *hm = hotspots();
++	lua_pushnumber(hm ? hm->getCtrlMode() : 0);
++}
++
++void Lua_V1::SetOptionMode() {
++	HotspotMan *hm = hotspots();
++	if (!hm) {
++		lua_pushstring("");
++		return;
++	}
++	const char *name = lua_getstring(lua_getparam(1));
++	Common::String old = hm->getOptionMode();
++	hm->setOptionMode(name ? name : "");
++	lua_pushstring(old.c_str());
++}
++
++} // end of namespace Grim
+diff --git a/engines/grim/lua_v1_set.cpp b/engines/grim/lua_v1_set.cpp
+--- a/engines/grim/lua_v1_set.cpp
++++ b/engines/grim/lua_v1_set.cpp
+@@ -26,6 +26,7 @@
+ #include "engines/grim/actor.h"
+ #include "engines/grim/grim.h"
+ #include "engines/grim/set.h"
++#include "engines/grim/hotspotman.h"
+ #include "engines/grim/lua/lauxlib.h"
+ 
+ namespace Grim {
+@@ -250,6 +251,8 @@
+ 	const char *name = lua_getstring(nameObj);
+ 	Debug::debug(Debug::Engine, "Entered new scene '%s'.", name);
+ 	g_grim->setSet(name);
++	if (g_grim->getHotspotMan())
++		g_grim->getHotspotMan()->updatePerspective();
+ }
+ 
+ void Lua_V1::MakeCurrentSetup() {
+diff --git a/engines/grim/module.mk b/engines/grim/module.mk
+--- a/engines/grim/module.mk
++++ b/engines/grim/module.mk
+@@ -95,6 +95,7 @@
+ 	animation.o \
+ 	bitmap.o \
+ 	costume.o \
++	cursor.o \
+ 	color.o \
+ 	colormap.o \
+ 	debug.o \
+@@ -118,6 +119,7 @@
+ 	lua_v1_set.o \
+ 	lua_v1_sound.o \
+ 	lua_v1_text.o \
++	lua_v1_mouse.o \
+ 	metaengine.o \
+ 	material.o \
+ 	model.o \
+@@ -129,6 +131,7 @@
+ 	savegame.o \
+ 	set.o \
+ 	sector.o \
++	hotspotman.o \
+ 	sound.o \
+ 	sprite.o \
+ 	textobject.o \
+diff --git a/engines/grim/resource.cpp b/engines/grim/resource.cpp
+--- a/engines/grim/resource.cpp
++++ b/engines/grim/resource.cpp
+@@ -71,6 +71,11 @@
+ 	}
+ };
+ 
++bool ResourceLoader::wantsGrimMouse() {
++	return g_grim->getGameType() == GType_GRIM && !(g_grim->getGameFlags() & ADGF_DEMO) && !g_grim->isRemastered() &&
++	       ConfMan.hasKey("grim_mouse") && ConfMan.getBool("grim_mouse") && SearchMan.hasFile("grim-mouse.lab");
++}
++
+ ResourceLoader::ResourceLoader() {
+ 	_cacheDirty = false;
+ 	_cacheMemorySize = 0;
+@@ -123,10 +128,14 @@
+ 			SearchMan.listMatchingMembers(files, "sound001.lab");
+ 			SearchMan.listMatchingMembers(files, "voice001.lab");
+ 		} else {
+-			if (!SearchMan.hasFile("grim-patch.lab"))
++			// Grim Mouse's grim-mouse.lab carries the same script fixes as
++			// grim-patch.lab (merged into its own patches) and replaces it.
++			const bool grimMouse = wantsGrimMouse();
++			if (!grimMouse && !SearchMan.hasFile("grim-patch.lab"))
+ 				error("%s", "grim-patch.lab not found");
+ 
+-			SearchMan.listMatchingMembers(files, "grim-patch.lab");
++			if (!grimMouse)
++				SearchMan.listMatchingMembers(files, "grim-patch.lab");
+ 			SearchMan.listMatchingMembers(files, "data005.lab");
+ 			SearchMan.listMatchingMembers(files, "data004.lab");
+ 			SearchMan.listMatchingMembers(files, "data003.lab");
+@@ -146,6 +155,8 @@
+ 			}
+ 			// Sort the archives in order to ensure that they are loaded with the correct order
+ 			Common::sort(files.begin(), files.end(), LabListComperator());
++			if (grimMouse)
++				files.push_front(SearchMan.getMember("grim-mouse.lab"));
+ 
+ 			// Check the presence of datausr.lab and if the user wants to load it.
+ 			// In this case put it in the top of the list
+diff --git a/engines/grim/resource.h b/engines/grim/resource.h
+--- a/engines/grim/resource.h
++++ b/engines/grim/resource.h
+@@ -60,6 +60,9 @@
+ 	ResourceLoader();
+ 	~ResourceLoader();
+ 
++	/** Grim Mouse asked for (grim_mouse=true) and grim-mouse.lab around. */
++	static bool wantsGrimMouse();
++
+ 	CMap *loadColormap(const Common::String &fname);
+ 	Costume *loadCostume(const Common::String &fname, Actor *owner, Costume *prevCost);
+ 	Font *loadFont(const Common::String &fname);
+diff --git a/engines/grim/savegame.cpp b/engines/grim/savegame.cpp
+--- a/engines/grim/savegame.cpp
++++ b/engines/grim/savegame.cpp
+@@ -111,6 +111,26 @@
+ 
+ uint SaveGame::saveMinorVersion() const {
+ 	return _minorVersion;
++}
++
++bool SaveGame::hasSection(uint32 sectionTag) {
++	if (_saving || _currentSection != 0 || !_inSaveFile)
++		return false;
++	int64 start = _inSaveFile->pos();
++	bool found = false;
++	while (!_inSaveFile->eos()) {
++		uint32 tag = _inSaveFile->readUint32BE();
++		if (_inSaveFile->eos() || tag == SAVEGAME_FOOTERTAG)
++			break;
++		if (tag == sectionTag) {
++			found = true;
++			break;
++		}
++		uint32 size = _inSaveFile->readUint32BE();
++		_inSaveFile->seek(size, SEEK_CUR);
++	}
++	_inSaveFile->seek(start, SEEK_SET);
++	return found;
+ }
+ 
+ uint32 SaveGame::beginSection(uint32 sectionTag) {
+diff --git a/engines/grim/savegame.h b/engines/grim/savegame.h
+--- a/engines/grim/savegame.h
++++ b/engines/grim/savegame.h
+@@ -55,6 +55,8 @@
+ 	uint saveMajorVersion() const;
+ 	uint saveMinorVersion() const;
+ 	uint32 beginSection(uint32 sectionTag);
++	/** Loading: whether a section with this tag follows (Grim Mouse's optional HOTM). */
++	bool hasSection(uint32 sectionTag);
+ 	void endSection();
+ 	void read(void *data, int size);
+ 	void write(const void *data, int size);
+diff --git a/engines/grim/sector.cpp b/engines/grim/sector.cpp
+--- a/engines/grim/sector.cpp
++++ b/engines/grim/sector.cpp
+@@ -445,6 +445,17 @@
+ }
+ 
+ // Find the closest point on the walkplane to the given point
++bool Sector::raycast(const Math::Vector3d &v0, const Math::Vector3d &v1, Math::Vector3d &hit) const {
++	if (_numVertices == 0 || _normal.getMagnitude() == 0)
++		return false;
++	double div = _normal.dotProduct(v1);
++	if (div == 0)
++		return false;
++	double s = _normal.dotProduct(_vertices[0] - v0) / div;
++	hit = v0 + (float)s * v1;
++	return true;
++}
++
+ Math::Vector3d Sector::getClosestPoint(const Math::Vector3d &point) const {
+ 	// First try to project to the plane
+ 	Math::Vector3d p2 = getProjectionToPlane(point);
+diff --git a/engines/grim/sector.h b/engines/grim/sector.h
+--- a/engines/grim/sector.h
++++ b/engines/grim/sector.h
+@@ -73,6 +73,8 @@
+ 	Math::Vector3d getProjectionToPuckVector(const Math::Vector3d &v) const;
+ 
+ 	Math::Vector3d getClosestPoint(const Math::Vector3d &point) const;
++	/** Grim Mouse: where the ray v0 + s * v1 meets the sector's plane (false if parallel). */
++	bool raycast(const Math::Vector3d &v0, const Math::Vector3d &v1, Math::Vector3d &hit) const;
+ 
+ 	// Interface to trace a ray to its exit from the polygon
+ 	struct ExitInfo {
