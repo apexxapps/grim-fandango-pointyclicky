@@ -164,9 +164,9 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 -				}
 -			}
 -		}
-+		// The coat: the item in his hand (the middle) is the thing to take.
-+		if (pos.x >= kGameW / 3 && pos.x < 2 * kGameW / 3)
-+			cursor->setCursor(1);
++		// The coat: no pointer at all (Simon, 14 Nov 2026: it misled); a tap goes
++		// by where the finger lands (the app sends it to the matching third).
++		cursor->setCursor(7);
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
