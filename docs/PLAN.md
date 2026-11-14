@@ -99,15 +99,14 @@ it, and every exit. That's the one picture where a gap can't hide.
 4. **Running: double tap.**
 5. **Discovery is Manny's head, as in 1998. No text labels, ever** (Simon,
    14 Nov 2026, after the proof of concept: "that's how the game was
-   designed and it had charm"). Nothing flashes, and no
-   "show everything". Manny's head turns to things as he passes, as the game
-   always did, and the pointer over a thing also turns his head to it
-   (`head_look_at`, the game's own), so finding things is still his to show.
-   **The pointer chooses; Manny's head shows** (Simon, 14 Nov 2026). Over a
-   thing: he looks at it, the cursor goes marigold, a tap acts on it; head,
-   cursor and tap always agree. Over nothing: the cursor stays bone-white, a
-   tap walks, and he may still glance at things he passes as in 1998 (a hint
-   to go and point, never a target).
+   designed and it had charm"). **Manny finds, the cursor confirms** (Simon,
+   14 Nov 2026, over "the cursor finds", which steals the head's job):
+   - Manny's head does what it did in 1998 and only that: he glances at things
+     as he passes, by the game's own rule. It never follows the pointer.
+   - The cursor goes marigold only over a thing Manny has noticed (his head has
+     turned to it). Unnoticed things stay bone, though a tap on them still acts.
+   - "Noticed" is the game's own head-look target, read live, never a list of ours.
+
 6. **Old saves: not needed.** No one has played Grim in the app yet, so the
    edition is the only way Grim has ever played in PointyClicky.
 
