@@ -114,8 +114,11 @@ it, and every exit. That's the one picture where a gap can't hide.
      builds `vlist` (visible, touchable, within the object's own `range` of
      Manny), and `Head_Control` picks `hot_object` from it (nearest in angle,
      taking turns between near-equal ones), which `head_look_at` turns his
-     head to. An object is **noticed** once it has been `hot_object` during
-     the current visit to the room; it stays noticed until he leaves.
+     head to. An object is **noticed** once it has been `hot_object`, and it
+     stays noticed **for good in that playthrough** (Simon, 14 Nov 2026): amber
+     on every later visit, kept in the save (Continue remembers). Things the
+     story switches on later are new, so they need noticing in their turn.
+     A tap on an unnoticed thing still acts: amber only confirms.
 
 6. **Old saves: not needed.** No one has played Grim in the app yet, so the
    edition is the only way Grim has ever played in PointyClicky.
