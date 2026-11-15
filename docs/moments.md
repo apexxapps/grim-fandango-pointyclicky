@@ -162,7 +162,15 @@ P pick up, E examine, I inventory, Esc override.
 26. **The scythe on the Bone Wagon's road** (lb, bv, bd set the Bone Wagon
     handler on entry): covered by line 1.
 
-## For Simon to decide
+## Decided (Simon, 15 Nov 2026)
+
+- Line 16, the fire extinguisher: **press and hold to spray**, lift to stop.
+- Line 17, the rope: **drop is left out**; throwing is the puzzle.
+- Lines 19-21, the "any key" scenes: **a tap anywhere** moves on.
+- Vehicles (1-5): **not decided yet**. Simon hasn't played the game and wants to try the driving
+  first, from a save at the Bone Wagon.
+
+## For Simon to decide (as proposed)
 
 - The vehicle rule (lines 1-5): "tap where to go, the game's own arrows are
   held until it's there". One rule for the Bone Wagon, the forklift and the
