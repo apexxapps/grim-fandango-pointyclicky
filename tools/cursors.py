@@ -33,7 +33,7 @@ TOP = [  # 10 wide, columns 8..17; row 0 is the bone's outer end. K ink, C bone,
 ]
 # Manny's own bone (14 Nov 2026): m_bone.mat / m_jaw.mat through suit.cmp, his costume's colour map.
 REST = {'K': (17, 7, 0), 'C': (247, 245, 231), 'T': (198, 194, 177), 'G': (226, 227, 213)}
-HOT = {'K': (17, 7, 0), 'C': (255, 196, 61), 'T': (184, 115, 26), 'G': (255, 226, 140)}   # the yellow of the play screen's chrome (Palette.amber, Simon 15 Nov 2026)
+HOT = {'K': (17, 7, 0), 'C': (242, 160, 61), 'T': (164, 94, 18), 'G': (255, 206, 130)}   # Grim's theme accent, the Day of the Dead's marigold (Simon 15 Nov 2026)
 
 
 def grid():
