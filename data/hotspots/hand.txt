@@ -1,0 +1,18 @@
+# Outlines fixed by hand (set setup id), kept as they are by tools/hotspots.py:
+# a trace never replaces them. Each line's reason is in docs/proof.md (Fn) or
+# docs/outlines-review.md.
+ga 1 gatx121   # proof F1: the big door, the strip along the bottom cut
+ha 0 hatx161   # proof F2: the garage elevator, round the lattice door
+ha 0 hatx131   # proof F3: the hole punch, top along the desk's front edge
+ha 3 hatx131   # proof F7: the hole punch on Eva's desk from above
+le 0 letx001   # proof F5: the hanging rope of ties, over the ties as drawn
+mo 3 motx094   # proof F6: the deck of playing cards, round the box
+lo 2 lotx015   # proof F9: the front doors, cut back to the doors
+lo 0 lotx009   # proof F10: the tube room's door, squared to its frame
+do 1 dotx161   # proof F11: Domino's window (the scripts' table is dom)
+rf 1 rftx021   # proof F12: the pigeons, the flock only
+rf 2 rftx021   # proof F12
+co 0 cotx023   # outlines-review.md second pass: papers2 off the back wall (none on this angle)
+tu 0 bdtx018   # outlines-review.md second pass: the extinguisher off the lobby door
+tu 3 bdtx018   # outlines-review.md second pass
+th 0 thtx093   # outlines-review.md second pass: the dressing-room exit off the backstage floor

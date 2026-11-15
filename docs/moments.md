@@ -161,6 +161,9 @@ load, so the saves carry none.
    where its tr.barrow actor is drawn (linked by mouse.lua); a tap on it or on Manny
    = U. Grim Mouse's linear mode and its tr.linearMove* are retired. Proven
    (build/for-simon/grim18.gsv): build/bench/m6-pickup, m6-push, m6-pull, m6-letgo.
+   (That save carried the retired script; in a new game a pull never ended, as
+   Grim Mouse's tr.lua loop still asked for it: the 1998 loops are back, proof.md
+   fix 15, and the same for the crawl's ac.lua.)
 7. **The anchor room crawl** (ac: `drift_button_handler`). 1998: ↑ crawl
    forward, ↓ crawl back (held), E look at what Manny's facing, I "not now".
    Proposed: tap along the crawl = ↑ or ↓ held until there; two fingers = E.

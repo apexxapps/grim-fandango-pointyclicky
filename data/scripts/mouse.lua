@@ -892,3 +892,19 @@ end
 if system.currentSet then
     pc_link_actors(system.currentSet)
 end
+-- PointyClicky Edition (15 Nov 2026, the proof playthrough): the wheelbarrow and
+-- the anchor room crawl are the 1998 loops again (tr.lua and ac.lua's patches:
+-- Grim Mouse had made them run on while its linear-mode script ran, and with
+-- that script retired find_script(nil) kept them running, so a pull never ended
+-- and Manny pushed the barrow off down the road). A save made before this
+-- carries the old loops; for those, the names they ask about stand for a script
+-- that never runs, so find_script answers nil as the 1998 loops' keys do.
+pc_never_runs = function() end
+if tr and not tr.linearMovePlus then
+    tr.linearMovePlus = pc_never_runs
+    tr.linearMoveMinus = pc_never_runs
+end
+if ac and not ac.linearMovePlus then
+    ac.linearMovePlus = pc_never_runs
+    ac.linearMoveMinus = pc_never_runs
+end

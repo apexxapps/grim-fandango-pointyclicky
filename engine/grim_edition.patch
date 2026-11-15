@@ -508,7 +508,7 @@ index 0ac3cff..343d626 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..ae21b43 100644
+index f6552fb..3e4c4b6 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -673,7 +673,7 @@ index f6552fb..ae21b43 100644
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -400,6 +485,59 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
+@@ -400,6 +485,64 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
  	return (c * d - b * e) / (c * a - b * b);
  }
  
@@ -692,6 +692,11 @@ index f6552fb..ae21b43 100644
 +	a->_screenBoxWanted = true;   // measured from the next frame on
 +	if (!a->isVisible() || !a->isInSet(set->getName()) || a->_screenBox.isEmpty() ||
 +	    g_system->getMillis() - a->_screenBoxTime > 250)
++		return nullptr;
++	// Behind the camera it isn't on screen, and its box is a mirror image
++	// (the proof playthrough: the Bone Wagon parked behind the tree pump's
++	// camera took the taps on the wheelbarrow, across the screen from it).
++	if (cameraDepth(a->getWorldPos()) <= 0.f)
 +		return nullptr;
 +	return a;
 +}
@@ -733,7 +738,7 @@ index f6552fb..ae21b43 100644
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
  	if (!g_grim->getCurrSet())
  		return;
-@@ -443,30 +581,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -443,30 +586,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -793,7 +798,7 @@ index f6552fb..ae21b43 100644
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,8 +646,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -497,8 +651,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
@@ -804,7 +809,7 @@ index f6552fb..ae21b43 100644
  			LuaObjects objects;
  			objects.add(button);
  			objects.add(gid);
-@@ -587,9 +737,12 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -587,9 +742,12 @@ void HotspotMan::hover(const Common::Point &pos) {
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
@@ -819,7 +824,7 @@ index f6552fb..ae21b43 100644
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +762,31 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -609,6 +767,31 @@ void HotspotMan::hover(const Common::Point &pos) {
  		}
  	}
  
@@ -851,7 +856,7 @@ index f6552fb..ae21b43 100644
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +794,9 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -616,16 +799,9 @@ void HotspotMan::hover(const Common::Point &pos) {
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -871,7 +876,7 @@ index f6552fb..ae21b43 100644
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -645,6 +816,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
+@@ -645,6 +821,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
  	return Common::Point(x, y);
  }
  
@@ -914,7 +919,7 @@ index f6552fb..ae21b43 100644
  void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
  	Math::Vector3d r0, r1;
  	if (!raycast(cursor.x, cursor.y, r0, r1))
-@@ -698,6 +905,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -698,6 +910,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -923,7 +928,7 @@ index f6552fb..ae21b43 100644
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +967,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
+@@ -758,6 +972,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -941,7 +946,7 @@ index f6552fb..ae21b43 100644
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +1032,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
+@@ -812,6 +1037,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -958,7 +963,7 @@ index f6552fb..ae21b43 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1149,1129 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1154,1136 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -1081,7 +1086,8 @@ index f6552fb..ae21b43 100644
 +	if (!a)
 +		return false;
 +	a->_screenBoxWanted = true;
-+	return !a->_screenBox.isEmpty() && g_system->getMillis() - a->_screenBoxTime < 250 && a->_screenBox.contains(p);
++	return !a->_screenBox.isEmpty() && g_system->getMillis() - a->_screenBoxTime < 250 && a->_screenBox.contains(p) &&
++	       HotspotMan::cameraDepth(a->getWorldPos()) > 0.f;   // (behind the camera: not drawn)
 +}
 +
 +// Where a tap lands on the ground: the first walk sector the ray meets (as a
@@ -1691,7 +1697,9 @@ index f6552fb..ae21b43 100644
 +	_momFwd = Common::KEYCODE_UP;
 +	_momBack = Common::KEYCODE_DOWN;
 +	_momStart = _momCheckTime = g_system->getMillis();
-+	debug(1, "Grim Mouse: %s: to %.2f along the way (tap %d,%d)", kMomentNames[kind], best, cursor.x, cursor.y);
++	int fx = 0, fy = 0;
++	worldToScreen(manny->getPos(), fx, fy);
++	debug(1, "Grim Mouse: %s: to %.2f along the way (tap %d,%d; Manny's feet %d,%d)", kMomentNames[kind], best, cursor.x, cursor.y, fx, fy);
 +	lineUpdate();
 +	return true;
 +}
@@ -1705,8 +1713,12 @@ index f6552fb..ae21b43 100644
 +		return momentStop("took too long");
 +	float s = (manny->getPos() - _momOrigin).dotProduct(_momAxis);
 +	float togo = _momTarget - s;
-+	if (fabs(togo) < _momArrive)
++	if (fabs(togo) < _momArrive) {
++		int fx = 0, fy = 0;
++		worldToScreen(manny->getPos(), fx, fy);
++		debug(1, "Grim Mouse: %s: Manny's feet %d,%d", kMomentNames[_momKind], fx, fy);
 +		return momentStop("there");
++	}
 +	if (now - _momCheckTime >= kMomentStall) {
 +		if (fabs(s - _momCheckS) < 0.01f)
 +			return momentStop("as far as it goes");
@@ -2089,7 +2101,7 @@ index f6552fb..ae21b43 100644
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..d450a17 100644
+index 9d342ba..bd9e5e7 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2126,7 +2138,17 @@ index 9d342ba..d450a17 100644
  };
  
  struct MouseHotspot {
-@@ -111,6 +124,39 @@ public:
+@@ -88,6 +101,9 @@ public:
+ 	void disableAll();
+ 	HotObject *getObject(int idx) { return idx >= 0 && idx < (int)_hotobject.size() ? &_hotobject[idx] : nullptr; }
+ 
++	// how far in front of the camera p is (negative: behind it)
++	static float cameraDepth(const Math::Vector3d &p);
++
+ 	void initialize();
+ 	void event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick);
+ 	void hover(const Common::Point &cursor);
+@@ -111,6 +127,39 @@ public:
  	void setOptionMode(const Common::String &name) { _curOption = name; }
  	const Common::String &getOptionMode() const { return _curOption; }
  	Common::Point mannyPos2D(float zOffset);
@@ -2166,7 +2188,7 @@ index 9d342ba..d450a17 100644
  
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
-@@ -127,10 +173,72 @@ protected:
+@@ -127,10 +176,71 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
@@ -2174,7 +2196,6 @@ index 9d342ba..d450a17 100644
 +	Actor *liveActor(int oid);
 +	int actorAt(const Common::Point &p, float &depth);
 +	int outlineObjectAt(const Common::Point &p, int setup);
-+	static float cameraDepth(const Math::Vector3d &p);
  	void restoreCursor();
  	Common::String activeSet();
  	Common::Array<MouseHotspot> &hotspotsOf(const Common::String &set);

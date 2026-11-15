@@ -13,6 +13,10 @@ Checks on a traced outline (else Grim Mouse's, else left out and listed):
   - not far bigger than the thing: its area under 6x the object's reach on
     screen (a disc of its `range`), so a trace that ran across a wall or a
     floor doesn't swallow the room.
+Hand fixes: data/hotspots/hand.txt lists outlines fixed by hand (set, setup,
+id); they are kept exactly as they are in the file, whatever the trace says
+(the proof playthrough's fixes, docs/proof.md). Add a line there for every
+outline fixed by hand, or a re-run undoes it.
 Priority (the engine takes the first hotspot that contains the pointer):
 objects and doors, then walk paths, then the rest.
 """
@@ -75,7 +79,18 @@ def line(setup, hid, name, htype, poly, pos=(0, 0, 0)):
     return f'{setup} /{hid} "{name}" {htype} 1 {pos[0]} {pos[1]} {pos[2]} {len(poly)} {pts}'
 
 
+def hand_fixed():
+    """(set, setup, id) of every outline fixed by hand: data/hotspots/hand.txt."""
+    out = set()
+    for l in open(os.path.join(HS, 'hand.txt')):
+        f = l.split('#')[0].split()
+        if len(f) >= 3:
+            out.add((f[0], int(f[1]), f[2]))
+    return out
+
+
 def main():
+    hand = hand_fixed()
     outl = json.load(open(os.path.join(ROOT, 'build', 'outlines', 'outlines.json')))
     objs = inv.objects(os.path.join(ROOT, 'build', 'inventory', 'lua'))
     raw = os.path.join(ROOT, 'build', 'inventory', 'raw')
@@ -93,6 +108,12 @@ def main():
         for r in sorted(by.get(st, []), key=lambda r: (r['setup'], r['object'])):
             o = objs[st][r['object']]
             if not o['id']:
+                continue
+            if (st, r['setup'], o['id']) in hand:
+                # kept as it is in the file; none there means taken off by hand
+                kept = [h for h in gm if h['setup'] == r['setup'] and h['id'] == o['id'] and h['type'] in (1, 2)]
+                out.extend(raw_line(path, h) for h in kept)
+                covered.add((r['setup'], o['id']))
                 continue
             htype = 2 if 'walkOut' in o['handlers'] else 1
             name = o['name'] or r['name']

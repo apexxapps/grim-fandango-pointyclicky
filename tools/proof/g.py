@@ -2,7 +2,7 @@
 """g.py '<json steps>'  or  g.py -f file.json ; prints the bench's lines and the new log lines"""
 import json, socket, sys, os
 LOG='/Users/simonstark/AI Projects/development/grim-fandango-pointyclicky/build/bench/scummvm.out'
-POS=os.path.join(os.path.dirname(os.path.abspath(__file__)),'.logpos')
+POS='/Users/simonstark/AI Projects/development/grim-fandango-pointyclicky/build/proof-bench/.logpos'
 arg = open(sys.argv[2]).read() if sys.argv[1]=='-f' else sys.argv[1]
 steps = json.loads(arg)
 s = socket.create_connection(('127.0.0.1', 47123))
