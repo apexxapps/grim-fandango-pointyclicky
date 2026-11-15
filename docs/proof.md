@@ -302,4 +302,9 @@ lines. Every new hand fix needs its line there.)
   binding wherever Manny uses an item on himself.
 - The ScummVM tree's grim room adapter (engines/grim/pt_room.cpp) was missing
   (taken out for the Mac bench, it seems); ScummVMKit/rooms/apply.sh put it back
-  before the iOS build.
+  before the iOS build (the Mac bench builds with it too).
+- The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
+  in ~/Developer/pointyclicky-build. Both build dirs had reconfigured and lost
+  FreeType (deps has no pkg-config file); three lines appended to each
+  config.mk fix it (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib
+  -lfreetype -lz -lbz2`). A reconfigure (an engine list change) loses them again.
