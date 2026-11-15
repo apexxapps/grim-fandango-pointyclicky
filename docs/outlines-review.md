@@ -151,3 +151,40 @@ Totals: 64 left, 30 drawn, 17 live, 1 covered.
   bolts and wheels: open/closed door states) fail on every angle that shows
   the other state. And a walkOut-only door whose point is inside a walk path
   could be counted as covered rather than flagged.
+
+## The ones left for Simon, second pass (15 Nov 2026)
+
+- **co setup 0 `papers2` (cotx023), the whole back wall:** removed on that angle.
+  The game's point (247,244) is under memo1's outline (cotx028), so there's no
+  free pixel of its own; papers2 is a child of co.papers (co.lua), whose handlers
+  stay reachable on this angle through papers3 (cotx024). The window keeps its own.
+- **tu `extinguisher` (bdtx018) over the lobby door:** setup 0 is now the strip
+  on the wall left of the door that holds the game's point (352-371 x 165-235);
+  setup 3's L over most of the screen is now the extinguisher on the wall (the
+  same shape as tutx018 there, around the point). The door's outline is free.
+- **th's dressing-room exit over the backstage floor:** setup 0's outline is now
+  the doorway at the right, the same area as the existing 'dress' walk path
+  (holds the game's point, 616,282).
+- **th's setup numbering:** nothing to fix. The engine's setup is the index into
+  th.set's own list (the tools read the names from there: 0 = th_rftha); th.lua's
+  table names them the other way round, but the hotspot files, the sheets and
+  the engine all use the index, and the backgrounds on the sheets match their
+  outlines.
+- **mo setup 0 `tube` on bare floor:** the tube is the pneumatic pipe drawn in the
+  foreground (a costume, not in the background, so the sheet couldn't show it).
+  The outline now covers that pipe and holds the game's point. Proven: a new
+  game, two fingers on the pipe, Manny looks at the tube (build/bench/o-mo, o-look).
+- **mt setup 3, the temple gate:** a walk path over the sky-lit opening
+  (205-242 x 138-225) to the doorway's own out point (mt.tg_door). Not proven on
+  the bench (the scene wasn't reached).
+- **at's catwalk:** settled by the tunnel ride (moments.md line 5: a tap on the
+  catwalk is U).
+- **The way down from the lighthouse top: still open.** On the bench (lx, Year 2,
+  Manny put at the top by the game's own come_out_door(lx.top), camera lx_extoh)
+  no tap moved him at all, a walk path to lx.top's use point included (tried and
+  taken out). The top's walk sectors need a look before the playthrough gets there.
+- **ps lantern following Chepito: left.** The engine follows whole actors; the
+  lantern is Chepito's node 12 (ps.chepito_light), so linking it to Chepito would
+  make it fight Chepito's own outline for the same box. The lantern's only own
+  handlers are lines (look, use); Chepito is reachable. For Simon: worth a
+  node-following outline?
