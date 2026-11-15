@@ -73,9 +73,31 @@ system.linearMove = function(arg1, arg2, arg3) -- line 58
         end
     end
 end
+-- PointyClicky Edition (15 Nov 2026): characters' live outlines. An object
+-- that stands for a character is the game's X_obj for its actor X (glottis_obj,
+-- meche_obj...); the engine then finds it where the character is drawn. Where the
+-- game's scripts tie one to an actor of another name, that's here: pi.lua moves
+-- terry_obj with terry, at.lua albinizod_obj with zod, su.lua moving_chepito_obj
+-- with chepito; Maximino and the Gate Keeper are maximino and gate_keeper.
+pc_actor_of = { terry_obj = "terry", albinizod_obj = "zod", moving_chepito_obj = "chepito", max_obj = "maximino", keeper_obj = "gate_keeper" }
+pc_link_actors = function(arg1)
+    local local1, local2, local3, local4
+    local1, local2 = next(arg1, nil)
+    while local1 do
+        if type(local1) == "string" and type(local2) == "table" and local2.hotspot_id and strlen(local1) > 4 and strsub(local1, strlen(local1) - 3) == "_obj" then
+            local3 = pc_actor_of[local1] or strsub(local1, 1, strlen(local1) - 4)
+            local4 = getglobal(local3)
+            if type(local4) == "table" and local4.hActor then
+                LinkHotspotActor(local2.hotspot_id, local4.hActor)
+            end
+        end
+        local1, local2 = next(arg1, local1)
+    end
+end
 Set.update_hotspots = function(arg1) -- line 69
     local local1, local2
     break_here()
+    pc_link_actors(arg1)
     local1, local2 = next(arg1, nil)
     ActivateHotspot(-1, FALSE)
     while local1 do
@@ -1259,4 +1281,8 @@ Inventory.unload_inventory = function(arg1)
     Inventory:return_to_set()
     inventory_save_set:current_setup(inventory_save_setup)
     manny:setpos(inventory_save_pos)
+end
+-- (after a load: the links aren't in the save; the current set's again)
+if system.currentSet then
+    pc_link_actors(system.currentSet)
 end

@@ -12,7 +12,8 @@ grim-mouse.lab) and ScummVM's grim-patch.lab. The script is a list of steps:
   {"move": [x, y]} / {"click": [x, y], "button": 1}
   {"shot": "name"}                   -> build/bench/name.png
   {"save": 1} / {"load": 1}          the engine's own save / load, slot n
-Everything is written under build/bench (git-ignored).
+Everything is written under build/bench (git-ignored). BENCH_DEBUG=1 draws
+every outline (grim_mouse_debug).
 """
 import json
 import os
@@ -44,7 +45,8 @@ class Bench:
         self.out = os.path.join(ROOT, 'build', 'bench')
         os.makedirs(os.path.join(self.out, 'saves'), exist_ok=True)
         ini = os.path.join(self.out, 'scummvm.ini')
-        open(ini, 'w').write(INI)
+        # BENCH_DEBUG=1: every outline drawn (grim_mouse_debug)
+        open(ini, 'w').write(INI + ('grim_mouse_debug=true\n' if os.environ.get('BENCH_DEBUG') else ''))
         self.sock_path = '/tmp/grim-bench.sock'
         try:
             os.unlink(self.sock_path)

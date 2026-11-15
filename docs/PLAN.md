@@ -140,6 +140,17 @@ emergency font). Those are ours to design (phase 2 and the decisions above).
   have none yet, the engine falls back to the object's projected point and
   reach, so nothing is ever unclickable. The audit counts every fallback
   so it shows up as work left.
+- **Characters, live (15 Nov 2026).** An object that stands for a character
+  (the game's `X_obj` for its actor `X`, plus the five the scripts tie to
+  another name: terry, zod, chepito, maximino, gate_keeper) is linked to its
+  actor by mouse.lua (`LinkHotspotActor`, on every hotspot refresh and after
+  a load), and the engine finds it where the character is drawn this frame
+  (the costume's box on screen, as the engine measures it to place speech),
+  not on a fixed outline. Where an object nearer the camera is under the
+  pointer too, the object wins (a desk in front of the clerk). When the
+  character isn't drawn, the outline is used as before. Proven on the bench:
+  a click on Eva's legs, outside her old outline, starts her conversation
+  (build/bench/j3-*).
 - **Exits** come from the sectors and door objects (the answer key), not
   from hand-placed "to" polygons.
 - **Every action through the game.** Walking uses the game's own pathing.
