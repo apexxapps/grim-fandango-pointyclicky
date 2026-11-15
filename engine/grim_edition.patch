@@ -1,34 +1,399 @@
-diff --git a/engines/grim/grim.h b/engines/grim/grim.h
---- a/engines/grim/grim.h
-+++ b/engines/grim/grim.h
-@@ -223,6 +223,11 @@
- 	void pauseEngineIntern(bool pause) override;
+diff --git a/engines/grim/actor.cpp b/engines/grim/actor.cpp
+--- a/engines/grim/actor.cpp
++++ b/engines/grim/actor.cpp
+@@ -19,6 +19,7 @@
+  *
+  */
  
- 	void handleControls(Common::EventType type, const Common::KeyState &key);
-+public:
-+	// PointyClicky Edition: a key of the original's, pressed and let go, as
-+	// the player's keyboard would (the coat's arrows, U, E).
-+	void pressGameKey(Common::KeyCode code, uint16 ascii);
-+protected:
- 	void handleChars(Common::EventType type, const Common::KeyState &key);
- 	void handleJoyAxis(byte axis, int16 position);
- 	void handleMouseAxis(byte axis, int16 position);
++#include "common/system.h"
+ #include "math/line3d.h"
+ #include "math/rect2d.h"
+ 
+@@ -589,153 +590,164 @@ void Actor::turnTo(const Math::Angle &pitchParam, const Math::Angle &yawParam, c
+ 		_turning = false;
+ }
+ 
+-void Actor::walkTo(const Math::Vector3d &p, bool force) {
+-	if (p == _pos)
+-		_walking = false;
+-	else {
+-		_walking = true;
+-		_destPos = p;
+-		_path.clear();
++// The game's own route through the walk sectors from where the actor is to p
++// (dest: p moved into the nearest sector), last waypoint first, as walkTo
++// follows it. Split out of walkTo for the PointyClicky Edition's vehicles,
++// which steer along it with the game's own keys.
++bool Actor::findPath(const Math::Vector3d &p, Common::List<Math::Vector3d> &path, Math::Vector3d &dest) {
++	bool pathFound = false;
++	path.clear();
++	dest = p;
+ 
+-		if (_followBoxes) {
+-			bool pathFound = false;
+-
+-			Set *currSet = g_grim->getCurrSet();
+-			currSet->findClosestSector(p, nullptr, &_destPos);
+-
+-			Common::List<PathNode *> openList;
+-			Common::List<PathNode *> closedList;
+-
+-			PathNode *start = new PathNode;
+-			start->parent = nullptr;
+-			start->pos = _pos;
+-			start->dist = 0.f;
+-			start->cost = 0.f;
+-			openList.push_back(start);
+-			currSet->findClosestSector(_pos, &start->sect, nullptr);
+-
+-			Common::List<Sector *> sectors;
+-			for (int i = 0; i < currSet->getSectorCount(); ++i) {
+-				Sector *s = currSet->getSectorBase(i);
+-				int type = s->getType();
+-				if ((type == Sector::WalkType || type == Sector::HotType || type == Sector::FunnelType) && s->isVisible()) {
+-					sectors.push_back(s);
+-				}
++	Set *currSet = g_grim->getCurrSet();
++	currSet->findClosestSector(p, nullptr, &dest);
++
++	Common::List<PathNode *> openList;
++	Common::List<PathNode *> closedList;
++
++	PathNode *start = new PathNode;
++	start->parent = nullptr;
++	start->pos = _pos;
++	start->dist = 0.f;
++	start->cost = 0.f;
++	openList.push_back(start);
++	currSet->findClosestSector(_pos, &start->sect, nullptr);
++
++	Common::List<Sector *> sectors;
++	for (int i = 0; i < currSet->getSectorCount(); ++i) {
++		Sector *s = currSet->getSectorBase(i);
++		int type = s->getType();
++		if ((type == Sector::WalkType || type == Sector::HotType || type == Sector::FunnelType) && s->isVisible()) {
++			sectors.push_back(s);
++		}
++	}
++
++	do {
++		PathNode *node = nullptr;
++		float cost = -1.f;
++		for (Common::List<PathNode *>::iterator j = openList.begin(); j != openList.end(); ++j) {
++			PathNode *n = *j;
++			float c = n->dist + n->cost;
++			if (cost < 0.f || c < cost) {
++				cost = c;
++				node = n;
++			}
++		}
++		closedList.push_back(node);
++		openList.remove(node);
++		Sector *sector = node->sect;
++
++		if (sector && sector->isPointInSector(dest)) {
++			PathNode *n = closedList.back();
++			// Don't put the start position in the list, or else
++			// the first angle calculated in updateWalk() will be
++			// meaningless. The only node without parent is the start
++			// one.
++			while (n->parent) {
++				path.push_back(n->pos);
++				n = n->parent;
+ 			}
+ 
+-			do {
+-				PathNode *node = nullptr;
+-				float cost = -1.f;
+-				for (Common::List<PathNode *>::iterator j = openList.begin(); j != openList.end(); ++j) {
+-					PathNode *n = *j;
+-					float c = n->dist + n->cost;
+-					if (cost < 0.f || c < cost) {
+-						cost = c;
+-						node = n;
+-					}
+-				}
+-				closedList.push_back(node);
+-				openList.remove(node);
+-				Sector *sector = node->sect;
+-
+-				if (sector && sector->isPointInSector(_destPos)) {
+-					PathNode *n = closedList.back();
+-					// Don't put the start position in the list, or else
+-					// the first angle calculated in updateWalk() will be
+-					// meaningless. The only node without parent is the start
+-					// one.
+-					while (n->parent) {
+-						_path.push_back(n->pos);
+-						n = n->parent;
+-					}
++			pathFound = true;
++			break;
++		}
+ 
+-					pathFound = true;
++		for (Common::List<Sector *>::iterator i = sectors.begin(); i != sectors.end(); ++i) {
++			Sector *s = *i;
++			bool inClosed = false;
++			for (Common::List<PathNode *>::iterator j = closedList.begin(); j != closedList.end(); ++j) {
++				if ((*j)->sect == s) {
++					inClosed = true;
+ 					break;
+ 				}
++			}
++			if (inClosed)
++				continue;
+ 
+-				for (Common::List<Sector *>::iterator i = sectors.begin(); i != sectors.end(); ++i) {
+-					Sector *s = *i;
+-					bool inClosed = false;
+-					for (Common::List<PathNode *>::iterator j = closedList.begin(); j != closedList.end(); ++j) {
+-						if ((*j)->sect == s) {
+-							inClosed = true;
+-							break;
+-						}
+-					}
+-					if (inClosed)
+-						continue;
+-
+-					// Get "bridges" from the current sector to the other.
+-					Common::List<Math::Line3d> bridges = sector->getBridgesTo(s);
+-					if (bridges.empty())
+-						continue; // The sectors are not adjacent.
+-
+-					Math::Vector3d closestPoint;
+-					if (g_grim->getGameType() == GType_GRIM)
+-						closestPoint = s->getClosestPoint(_destPos);
+-					else
+-						closestPoint = _destPos;
+-					Math::Vector3d best;
+-					float bestDist = 1e6f;
+-					Math::Line3d l(node->pos, closestPoint);
+-
+-					// Pick a point on the boundary of the two sectors to walk towards.
+-					while (!bridges.empty()) {
+-						Math::Line3d bridge = bridges.back();
+-						Math::Vector3d pos;
+-						const bool useXZ = (g_grim->getGameType() == GType_MONKEY4);
+-
+-						// Prefer points on the straight line from this node towards
+-						// the destination. Otherwise pick the middle point of a bridge
+-						// that is closest to the destination.
+-						if (!bridge.intersectLine2d(l, &pos, useXZ)) {
+-							pos = bridge.middle();
+-						} else {
+-							best = pos;
+-							break;
+-						}
+-						float dist = (pos - closestPoint).getMagnitude();
+-						if (dist < bestDist) {
+-							bestDist = dist;
+-							best = pos;
+-						}
+-						bridges.pop_back();
+-					}
+-					best = handleCollisionTo(node->pos, best);
+-
+-					PathNode *n = nullptr;
+-					for (Common::List<PathNode *>::iterator j = openList.begin(); j != openList.end(); ++j) {
+-						if ((*j)->sect == s) {
+-							n = *j;
+-							break;
+-						}
+-					}
+-					if (n) {
+-						float newCost = node->cost + (best - node->pos).getMagnitude();
+-						if (newCost < n->cost) {
+-							n->cost = newCost;
+-							n->parent = node;
+-							n->pos = best;
+-							n->dist = (n->pos - _destPos).getMagnitude();
+-						}
+-					} else {
+-						n = new PathNode;
+-						n->parent = node;
+-						n->sect = s;
+-						n->pos = best;
+-						n->dist = (n->pos - _destPos).getMagnitude();
+-						n->cost = node->cost + (n->pos - node->pos).getMagnitude();
+-						openList.push_back(n);
+-					}
++			// Get "bridges" from the current sector to the other.
++			Common::List<Math::Line3d> bridges = sector->getBridgesTo(s);
++			if (bridges.empty())
++				continue; // The sectors are not adjacent.
++
++			Math::Vector3d closestPoint;
++			if (g_grim->getGameType() == GType_GRIM)
++				closestPoint = s->getClosestPoint(dest);
++			else
++				closestPoint = dest;
++			Math::Vector3d best;
++			float bestDist = 1e6f;
++			Math::Line3d l(node->pos, closestPoint);
++
++			// Pick a point on the boundary of the two sectors to walk towards.
++			while (!bridges.empty()) {
++				Math::Line3d bridge = bridges.back();
++				Math::Vector3d pos;
++				const bool useXZ = (g_grim->getGameType() == GType_MONKEY4);
++
++				// Prefer points on the straight line from this node towards
++				// the destination. Otherwise pick the middle point of a bridge
++				// that is closest to the destination.
++				if (!bridge.intersectLine2d(l, &pos, useXZ)) {
++					pos = bridge.middle();
++				} else {
++					best = pos;
++					break;
+ 				}
+-			} while (!openList.empty());
+-
+-			for (Common::List<PathNode *>::iterator j = closedList.begin(); j != closedList.end(); ++j) {
+-				delete *j;
++				float dist = (pos - closestPoint).getMagnitude();
++				if (dist < bestDist) {
++					bestDist = dist;
++					best = pos;
++				}
++				bridges.pop_back();
+ 			}
++			best = handleCollisionTo(node->pos, best);
++
++			PathNode *n = nullptr;
+ 			for (Common::List<PathNode *>::iterator j = openList.begin(); j != openList.end(); ++j) {
+-				delete *j;
++				if ((*j)->sect == s) {
++					n = *j;
++					break;
++				}
+ 			}
++			if (n) {
++				float newCost = node->cost + (best - node->pos).getMagnitude();
++				if (newCost < n->cost) {
++					n->cost = newCost;
++					n->parent = node;
++					n->pos = best;
++					n->dist = (n->pos - dest).getMagnitude();
++				}
++			} else {
++				n = new PathNode;
++				n->parent = node;
++				n->sect = s;
++				n->pos = best;
++				n->dist = (n->pos - dest).getMagnitude();
++				n->cost = node->cost + (n->pos - node->pos).getMagnitude();
++				openList.push_back(n);
++			}
++		}
++	} while (!openList.empty());
++
++	for (Common::List<PathNode *>::iterator j = closedList.begin(); j != closedList.end(); ++j) {
++		delete *j;
++	}
++	for (Common::List<PathNode *>::iterator j = openList.begin(); j != openList.end(); ++j) {
++		delete *j;
++	}
++	return pathFound;
++}
++
++void Actor::walkTo(const Math::Vector3d &p, bool force) {
++	if (p == _pos)
++		_walking = false;
++	else {
++		_walking = true;
++		_destPos = p;
++		_path.clear();
++
++		if (_followBoxes) {
++			bool pathFound = findPath(p, _path, _destPos);
+ 
+ 			if (!pathFound) {
+ 				warning("Actor::walkTo(): No path found for %s", _name.c_str());
+@@ -1757,6 +1769,17 @@ void Actor::draw() {
+ 		}
+ 	}
+ 
++	if (_screenBoxWanted && g_grim->getGameType() == GType_GRIM && !_costumeStack.empty()) {
++		int x1 = 1000, y1 = 1000, x2 = -1000, y2 = -1000;
++		g_driver->startActorDraw(this);
++		_costumeStack.back()->getBoundingBox(&x1, &y1, &x2, &y2);
++		g_driver->finishActorDraw();
++		if (x1 < x2 && y1 < y2) {
++			_screenBox = Common::Rect(x1, y1, x2, y2);
++			_screenBoxTime = g_system->getMillis();
++		}
++	}
++
+ 	if (_mustPlaceText) {
+ 		Common::Point p1, p2;
+ 		if (g_grim->getGameType() == GType_GRIM) {
+diff --git a/engines/grim/actor.h b/engines/grim/actor.h
+--- a/engines/grim/actor.h
++++ b/engines/grim/actor.h
+@@ -22,6 +22,7 @@
+ #ifndef GRIM_ACTOR_H
+ #define GRIM_ACTOR_H
+ 
++#include "common/rect.h"
+ #include "engines/grim/pool.h"
+ #include "engines/grim/object.h"
+ #include "engines/grim/color.h"
+@@ -166,6 +167,8 @@ public:
+ 	 * @see isWalking
+ 	 */
+ 	void walkTo(const Math::Vector3d &position, bool force = true);
++	/** The game's own route to position (PointyClicky Edition: the vehicles steer along it). */
++	bool findPath(const Math::Vector3d &position, Common::List<Math::Vector3d> &path, Math::Vector3d &dest);
+ 	/** Grim Mouse: walk facing away from the direction of travel. */
+ 	void setWalkBwd(bool bwd) { _walkBwd = bwd; }
+ 	/**
+@@ -331,6 +334,14 @@ public:
+ 	 * @see setVisibility
+ 	 */
+ 	bool isVisible() const { return _visible; }
++	/**
++	 * PointyClicky Edition (Grim Mouse): the costume's box on screen, in game
++	 * pixels, as last drawn, so the pointer finds a character where it stands.
++	 * Measured only for actors the hotspots ask for (_screenBoxWanted).
++	 */
++	bool _screenBoxWanted = false;
++	Common::Rect _screenBox;
++	uint32 _screenBoxTime = 0;
+ 
+ 	/**
+ 	 * Sets the scale of the actor.
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
 --- a/engines/grim/grim.cpp
 +++ b/engines/grim/grim.cpp
-@@ -995,11 +995,19 @@
- 		return;
- 	_hotspotManager->drawActive();
+@@ -828,8 +828,10 @@ void GrimEngine::luaUpdate() {
+ 		_frameTime = 0;
+ 	}
+ 
+-	if (_hotspotManager)
++	if (_hotspotManager) {
+ 		_hotspotManager->cutSceneMode(LuaBase::instance()->queryVariable("cutSceneLevel", true));
++		_hotspotManager->driveUpdate();
++	}
+ 
+ 	LuaBase::instance()->update(_frameTime, _movieTime);
+ 
+@@ -997,9 +999,22 @@ void GrimEngine::drawCursor() {
  	_cursor->draw();
-+}
-+
+ }
+ 
 +void GrimEngine::pressGameKey(Common::KeyCode code, uint16 ascii) {
 +	Common::KeyState kbd(code, ascii);
 +	handleChars(Common::EVENT_KEYDOWN, kbd);
 +	handleControls(Common::EVENT_KEYDOWN, kbd);
 +	handleControls(Common::EVENT_KEYUP, kbd);
- }
- 
++}
++
++void GrimEngine::holdGameKey(Common::KeyCode code, bool down) {
++	Common::KeyState kbd(code, 0);
++	handleControls(down ? Common::EVENT_KEYDOWN : Common::EVENT_KEYUP, kbd);
++}
++
  // Grim Mouse: pointer and buttons. Returns true when the event was used.
 -// Left: walk / use (twice within 500 ms: run), right: look, middle (or a right
 -// click on Manny himself, for hosts with two buttons): the inventory.
@@ -38,7 +403,17 @@ diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
  bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	if (!_hotspotManager || _mode == SmushMode)
  		return false;
-@@ -1022,7 +1030,10 @@
+@@ -1014,6 +1029,9 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+ 		return type == Common::EVENT_LBUTTONUP || type == Common::EVENT_RBUTTONUP || type == Common::EVENT_MBUTTONUP;
+ 	}
+ 	_cursor->updatePosition(event.mouse);
++	// PointyClicky Edition: in a vehicle, a tap is where to go
++	if (_hotspotManager->driveEvent(event, _cursor->getPosition()))
++		return true;
+ 	bool doubleClick = false;
+ 	if (type == Common::EVENT_LBUTTONDOWN) {
+ 		uint32 now = g_system->getMillis();
+@@ -1022,7 +1040,10 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	}
  	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
  	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
@@ -50,7 +425,7 @@ diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
  	    !_hotspotManager->isDialog()) {
  		// On Manny (he stands in front of whatever is behind him): from his
  		// feet to the top of his head on screen, a quarter of that either side.
-@@ -1031,9 +1042,21 @@
+@@ -1031,10 +1052,22 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  		if (feet.x || feet.y) {
  			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
  			int cx = (feet.x + head.x) / 2;
@@ -64,17 +439,18 @@ diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
 +			debug(1, "Grim Mouse: tap %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y,
 +			      putAway ? ": put away" : inventory ? ": coat" : "");
  		}
-+	}
+ 	}
 +	if (putAway) {
 +		Common::KeyState kbd(Common::KEYCODE_p, 'p');
 +		handleChars(Common::EVENT_KEYDOWN, kbd);
 +		handleControls(Common::EVENT_KEYDOWN, kbd);
 +		handleControls(Common::EVENT_KEYUP, kbd);
 +		return true;
- 	}
++	}
  	if (inventory) {
  		Common::KeyState kbd(Common::KEYCODE_i, 'i');
-@@ -1363,6 +1386,15 @@
+ 		handleChars(Common::EVENT_KEYDOWN, kbd);
+@@ -1363,6 +1396,15 @@ void GrimEngine::savegameRestore() {
  		lua_PatchGrimSave();
  	}
  
@@ -90,101 +466,28 @@ diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
  	delete _savedState;
  
  	_justSaveLoaded = true;
-diff --git a/engines/grim/actor.h b/engines/grim/actor.h
---- a/engines/grim/actor.h
-+++ b/engines/grim/actor.h
-@@ -22,6 +22,7 @@
- #ifndef GRIM_ACTOR_H
- #define GRIM_ACTOR_H
+diff --git a/engines/grim/grim.h b/engines/grim/grim.h
+--- a/engines/grim/grim.h
++++ b/engines/grim/grim.h
+@@ -223,6 +223,14 @@ protected:
+ 	void pauseEngineIntern(bool pause) override;
  
-+#include "common/rect.h"
- #include "engines/grim/pool.h"
- #include "engines/grim/object.h"
- #include "engines/grim/color.h"
-@@ -331,6 +332,14 @@
- 	 * @see setVisibility
- 	 */
- 	bool isVisible() const { return _visible; }
-+	/**
-+	 * PointyClicky Edition (Grim Mouse): the costume's box on screen, in game
-+	 * pixels, as last drawn, so the pointer finds a character where it stands.
-+	 * Measured only for actors the hotspots ask for (_screenBoxWanted).
-+	 */
-+	bool _screenBoxWanted = false;
-+	Common::Rect _screenBox;
-+	uint32 _screenBoxTime = 0;
- 
- 	/**
- 	 * Sets the scale of the actor.
-diff --git a/engines/grim/actor.cpp b/engines/grim/actor.cpp
---- a/engines/grim/actor.cpp
-+++ b/engines/grim/actor.cpp
-@@ -19,6 +19,7 @@
-  *
-  */
- 
-+#include "common/system.h"
- #include "math/line3d.h"
- #include "math/rect2d.h"
- 
-@@ -1754,6 +1755,17 @@
- 				Costume *costume = *it;
- 				drawCostume(costume);
- 			}
-+		}
-+	}
-+
-+	if (_screenBoxWanted && g_grim->getGameType() == GType_GRIM && !_costumeStack.empty()) {
-+		int x1 = 1000, y1 = 1000, x2 = -1000, y2 = -1000;
-+		g_driver->startActorDraw(this);
-+		_costumeStack.back()->getBoundingBox(&x1, &y1, &x2, &y2);
-+		g_driver->finishActorDraw();
-+		if (x1 < x2 && y1 < y2) {
-+			_screenBox = Common::Rect(x1, y1, x2, y2);
-+			_screenBoxTime = g_system->getMillis();
- 		}
- 	}
- 
-diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
---- a/engines/grim/hotspotman.h
-+++ b/engines/grim/hotspotman.h
-@@ -43,6 +43,7 @@
- 
- namespace Grim {
- 
-+class Actor;
- class Bitmap;
- class SaveGame;
- 
-@@ -61,6 +62,12 @@
- 	Math::Vector3d _pos;
- 	Common::Rect _rect;
- 	bool _active;
-+	// PointyClicky Edition: Manny's head has turned to it (the game's own
-+	// hot_object), so the cursor confirms it. For good in a playthrough.
-+	bool _noticed = false;
-+	// PointyClicky Edition: the character it stands for (an Actor id, 0 if
-+	// none): found where that character is drawn (LinkHotspotActor).
-+	int _actor = 0;
- };
- 
- struct MouseHotspot {
-@@ -127,6 +134,11 @@
- 	int inBox(const Common::Point &p);
- 	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
- 	void loadFlashBitmaps();
-+	void refreshOutlines();
-+	Actor *liveActor(int oid);
-+	int actorAt(const Common::Point &p, float &depth);
-+	int outlineObjectAt(const Common::Point &p, int setup);
-+	static float cameraDepth(const Math::Vector3d &p);
- 	void restoreCursor();
- 	Common::String activeSet();
- 	Common::Array<MouseHotspot> &hotspotsOf(const Common::String &set);
+ 	void handleControls(Common::EventType type, const Common::KeyState &key);
++public:
++	// PointyClicky Edition: a key of the original's, pressed and let go, as
++	// the player's keyboard would (the coat's arrows, U, E).
++	void pressGameKey(Common::KeyCode code, uint16 ascii);
++	// ... or held down until let go (a vehicle's arrows, held as the player
++	// held them: the scripts read the key's state each frame).
++	void holdGameKey(Common::KeyCode code, bool down);
++protected:
+ 	void handleChars(Common::EventType type, const Common::KeyState &key);
+ 	void handleJoyAxis(byte axis, int16 position);
+ 	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
-@@ -180,6 +180,13 @@
+@@ -180,13 +180,23 @@ bool HotspotMan::raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1) {
  	return true;
  }
  
@@ -198,7 +501,18 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  // ---------------------------------------------------------------------------
  
  HotspotMan::HotspotMan() :
-@@ -208,17 +215,18 @@
+ 	_cutScene(0), _ctrlMode(0), _rows(0), _cols(0), _x0(0), _y0(0), _w(0), _h(0),
+-	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr) {
++	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr),
++	_driving(false), _driveReverse(false), _driveExit(false), _driveStart(0), _driveCheckTime(0), _driveCheckYaw(0) {
+ 	for (int i = 0; i < 8; i++)
+ 		_flashBitmaps[i] = nullptr;
++	for (int i = 0; i < kDriveKeys; i++)
++		_driveHeld[i] = false;
+ 	ConfMan.registerDefault("grim_mouse_debug", false);
+ 	ConfMan.registerDefault("grim_mouse_names", false);
+ 	_showDebug = ConfMan.getBool("grim_mouse_debug");
+@@ -208,17 +218,18 @@ static Common::String readString(Common::SeekableReadStream *data) {
  	return s;
  }
  
@@ -222,7 +536,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  		list.clear();
  		int numHS = data->readSint32LE();
  		for (int j = 0; j < numHS; j++) {
-@@ -245,11 +253,66 @@
+@@ -245,11 +256,66 @@ void HotspotMan::initialize() {
  		}
  	}
  	delete data;
@@ -289,7 +603,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  void HotspotMan::loadFlashBitmaps() {
  	for (int i = 0; i < 8; i++) {
  		Common::String fn = Common::String::format("cursor%d_hl.tga", i);
-@@ -318,7 +381,9 @@
+@@ -318,7 +384,9 @@ void HotspotMan::drawActive() {
  		}
  	}
  
@@ -300,7 +614,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  		const int dx = 4;
  		int num_rows = _inventory.empty() ? 1 : (_inventory.size() - 1) / _cols + 1;
  		int x1 = _x0 + _w * _cols, y1 = _y0 + _h * num_rows;
-@@ -354,6 +419,16 @@
+@@ -354,6 +422,16 @@ void HotspotMan::drawActive() {
  			if (hotspots[i]._setup == setup || _ctrlMode == Options)
  				hotspots[i]._region.draw(Color(0, 200, 200));
  		}
@@ -317,7 +631,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -400,6 +475,59 @@
+@@ -400,6 +478,59 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
  	return (c * d - b * e) / (c * a - b * b);
  }
  
@@ -377,7 +691,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
  	if (!g_grim->getCurrSet())
  		return;
-@@ -443,30 +571,40 @@
+@@ -443,30 +574,40 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -436,7 +750,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,7 +635,7 @@
+@@ -497,7 +638,7 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
@@ -445,7 +759,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  				continue;
  			LuaObjects objects;
  			objects.add(button);
-@@ -587,9 +725,12 @@
+@@ -587,9 +728,12 @@ void HotspotMan::hover(const Common::Point &pos) {
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
@@ -460,7 +774,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +750,18 @@
+@@ -609,6 +753,18 @@ void HotspotMan::hover(const Common::Point &pos) {
  		}
  	}
  
@@ -479,7 +793,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +769,9 @@
+@@ -616,16 +772,9 @@ void HotspotMan::hover(const Common::Point &pos) {
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -499,7 +813,16 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -758,6 +904,17 @@
+@@ -698,6 +847,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+ }
+ 
+ bool HotspotMan::restoreState(SaveGame *savedState) {
++	// a drive doesn't outlive a load (the engine lets go of every key itself)
++	driveStop("load", false);
+ 	// A save made without Grim Mouse has no HOTM section: start from the
+ 	// hotspot files and let the scripts register their objects again.
+ 	if (!savedState->hasSection('HOTM')) {
+@@ -758,6 +909,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -517,7 +840,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +969,16 @@
+@@ -812,6 +974,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -534,10 +857,397 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
+@@ -919,4 +1091,282 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+ 	_inventory.push_back(it);
+ }
+ 
++// ---- The vehicles: tap where to go ------------------------------------------
++//
++// PointyClicky Edition (docs/moments.md, line 1; for Simon to try, 15 Nov 2026).
++// The Bone Wagon is driven by the game's own bone_wagon_button_handler, from
++// the 1998 keys: Up gas, Down reverse, Left/Right steer (read every frame by
++// bonewagon.monitor_turns, which turns the wagon while one is held), U or P
++// get out. A tap only decides which of those keys are held and for how long:
++// the engine holds them as a player would and lets go when the wagon is there.
++// No object, no script and no walk of the edition's moves the wagon.
++
++static const Common::KeyCode kDriveKeyCodes[] = {
++	Common::KEYCODE_UP, Common::KEYCODE_DOWN, Common::KEYCODE_LEFT, Common::KEYCODE_RIGHT
++};
++static const float kDriveArrive = 1.2f;       // there: its nose (or tail) at the point tapped (world units)
++static const float kDrivePassed = 2.f;        // ... or this close and the point is now behind
++static const float kDriveWaypoint = 1.5f;     // a waypoint on the way: this close, on to the next
++static const float kDriveSteer = 6.f;         // steer while it is off by more (degrees)
++static const float kDriveThrottle = 70.f;     // gas (or reverse) only while it is off by less
++static const float kDriveBehind = 120.f;      // a tap this far round from the nose is "behind" ...
++static const float kDriveNearExit = 1.5f;     // a tap this near a way out is on it
++static const float kDriveBackUp = 5.f;        // ... and backed up to if it's no further than this
++static const uint32 kDriveTimeout = 25000;    // never longer than this (ms)
++static const uint32 kDriveStall = 1200;       // blocked: in this long, neither moved ...
++static const float kDriveStallMove = 0.05f;   // ... this far
++static const float kDriveStallTurn = 3.f;     // ... nor turned this much (degrees)
++
++static float angleDiff(float a) {
++	while (a > 180.f)
++		a -= 360.f;
++	while (a <= -180.f)
++		a += 360.f;
++	return a;
++}
++
++bool HotspotMan::vehicleHandlerOn() {
++	return LuaBase::instance()->queryVariable(
++		"(bone_wagon_button_handler ~= nil and system.buttonHandler == bone_wagon_button_handler)", false) > 0;
++}
++
++// The wagon is the selected actor while Manny drives it (bonewagon:set_selected()).
++Actor *HotspotMan::vehicle() {
++	Actor *a = g_grim->getSelectedActor();
++	return a && a->getName() == "Bone Wagon" ? a : nullptr;
++}
++
++// Where a tap lands on the ground: the first walk sector the ray meets (as a
++// walk tap does), else the plane the wagon stands on. On one of the set's
++// ways out (a hot sector: the game's Doorman sends the object's walkOut when
++// the driven actor enters it), exit is set.
++bool HotspotMan::groundPoint(const Common::Point &cursor, float z, Math::Vector3d &out, bool &exit) {
++	exit = false;
++	Math::Vector3d r0, r1;
++	if (!raycast(cursor.x, cursor.y, r0, r1))
++		return false;
++	Set *set = g_grim->getCurrSet();
++	float best = -1.f, bestHot = -1.f;
++	Math::Vector3d hot;
++	for (int s = 0; s < set->getSectorCount(); s++) {
++		Sector *sector = set->getSectorBase(s);
++		bool isHot = sector->getType() == Sector::HotType;
++		if (((sector->getType() & Sector::WalkType) != Sector::WalkType && !isHot) || !sector->isVisible())
++			continue;
++		Math::Vector3d v;
++		if (!sector->raycast(r0, r1, v) || !sector->isPointInSector(v))
++			continue;
++		float d = (v - r0).getMagnitude();
++		float &b = isHot ? bestHot : best;
++		if (b < 0 || d < b) {
++			b = d;
++			(isHot ? hot : out) = v;
++		}
++	}
++	if (bestHot >= 0) {
++		out = hot;
++		exit = true;
++		return true;
++	}
++	if (best < 0) {
++		if (fabs(r1.z()) < 1e-6f)
++			return false;
++		float t = (z - r0.z()) / r1.z();
++		if (t <= 0.f)
++			return false;
++		out = r0 + r1 * t;
++	}
++	// A way out is often a sliver at the edge of the screen: a tap just short
++	// of one counts as on it (aimed well inside it, towards its middle).
++	float nearest = kDriveNearExit;
++	for (int s = 0; s < set->getSectorCount(); s++) {
++		Sector *sector = set->getSectorBase(s);
++		if (sector->getType() != Sector::HotType || !sector->isVisible() || sector->getNumVertices() < 3)
++			continue;
++		Math::Vector3d c = sector->getClosestPoint(out), mid;
++		float d = (c - out).getMagnitude();
++		if (d >= nearest)
++			continue;
++		for (int i = 0; i < sector->getNumVertices(); i++)
++			mid += sector->getVertices()[i];
++		mid /= (float)sector->getNumVertices();
++		Math::Vector3d in = mid - c;
++		float len = in.getMagnitude();
++		nearest = d;
++		hot = len > 2.f ? c + in * (2.f / len) : mid;
++		exit = true;
++	}
++	if (exit)
++		out = hot;
++	return true;
++}
++
++void HotspotMan::driveKey(int key, bool down) {
++	if (_driveHeld[key] == down)
++		return;
++	_driveHeld[key] = down;
++	g_grim->holdGameKey(kDriveKeyCodes[key], down);
++}
++
++void HotspotMan::driveStop(const char *why, bool release) {
++	if (!_driving)
++		return;
++	for (int i = 0; i < kDriveKeys; i++) {
++		if (release)
++			driveKey(i, false);
++		_driveHeld[i] = false;
++	}
++	_driving = false;
++	debug(1, "Grim Mouse: drive ends (%s)", why);
++}
++
++bool HotspotMan::driveEvent(const Common::Event &ev, const Common::Point &cursor) {
++	if (ev.type != Common::EVENT_LBUTTONDOWN && ev.type != Common::EVENT_RBUTTONDOWN)
++		return false;
++	if (!g_grim->getCurrSet() || !vehicleHandlerOn())
++		return false;
++	// the handler is the wagon's: no tap goes anywhere else (the walk taps
++	// would steer it by the scripts' own walks), and none in a cut scene
++	if (_cutScene > 0)
++		return true;
++	Actor *wagon = vehicle();
++	if (!wagon)
++		return true;
++	if (ev.type == Common::EVENT_RBUTTONDOWN || ev.kbd.hasFlags(Common::KBD_ALT)) {
++		driveStop("look");
++		g_grim->pressGameKey(Common::KEYCODE_e, 'e');
++		return true;
++	}
++	// on the wagon, as it is drawn: U, get out
++	wagon->_screenBoxWanted = true;
++	if (!wagon->_screenBox.isEmpty() && g_system->getMillis() - wagon->_screenBoxTime < 250 &&
++	    wagon->_screenBox.contains(cursor)) {
++		driveStop("tap on the wagon");
++		g_grim->pressGameKey(Common::KEYCODE_u, 'u');
++		debug(1, "Grim Mouse: tap on the Bone Wagon %d,%d: U", cursor.x, cursor.y);
++		return true;
++	}
++	Math::Vector3d target;
++	bool exit;
++	if (!groundPoint(cursor, wagon->getPos().z(), target, exit))
++		return true;
++	// the way there: the game's own route through the sectors the wagon may
++	// use (as a walk would take it), the point itself if there is none
++	Common::List<Math::Vector3d> path;
++	Math::Vector3d dest;
++	if (wagon->findPath(target, path, dest))
++		path.push_front(exit ? target : dest);   // a way out: into it, not to the nearest walk sector
++	else {
++		path.clear();
++		path.push_back(target);
++	}
++	float off = angleDiff(wagon->getYawTo(path.back()).getDegrees() - wagon->getYaw().getDegrees());
++	bool wasDriving = _driving;
++	_driving = true;
++	// behind it and near: back up (a long way round is driven forwards)
++	Math::Vector3d away = path.front() - wagon->getPos();
++	away.z() = 0;
++	_driveReverse = fabs(off) > kDriveBehind && away.getMagnitude() < kDriveBackUp;
++	_driveExit = exit;
++	_drivePath = path;
++	_driveTarget = path.front();
++	_driveSet = g_grim->getCurrSet()->getName();
++	_driveStart = _driveCheckTime = g_system->getMillis();
++	_driveCheckPos = wagon->getPos();
++	_driveCheckYaw = wagon->getYaw().getDegrees();
++	// a new tap mid-drive: the keys held now that the new target doesn't want
++	// are let go by the next update
++	debug(1, "Grim Mouse: drive %s to %.2f,%.2f%s (tap %d,%d, %.0f deg off, %d waypoints)%s", _driveReverse ? "back" : "on",
++	      _driveTarget.x(), _driveTarget.y(), exit ? ", a way out" : "", cursor.x, cursor.y, off, _drivePath.size(),
++	      wasDriving ? ", re-targeted" : "");
++	driveUpdate();
++	return true;
++}
++
++void HotspotMan::driveUpdate() {
++	if (!_driving)
++		return;
++	Set *set = g_grim->getCurrSet();
++	if (!set || set->getName() != _driveSet)
++		return driveStop("the scene changed");
++	if (g_grim->getMode() != GrimEngine::NormalMode)
++		return driveStop("not in play");
++	if (_cutScene > 0)
++		return driveStop("cut scene");
++	if (!vehicleHandlerOn())
++		return driveStop("out of the wagon");
++	Actor *wagon = vehicle();
++	if (!wagon)
++		return driveStop("no wagon");
++	uint32 now = g_system->getMillis();
++	if (now - _driveStart > kDriveTimeout)
++		return driveStop("took too long");
++
++	Math::Vector3d pos = wagon->getPos();
++	float yaw = wagon->getYaw().getDegrees();
++	// how far the wagon must turn to the next waypoint: its nose to it, or
++	// going back, its tail; a waypoint reached (or passed) gives the next
++	float off = 0.f, dist = 0.f;
++	for (;;) {
++		Math::Vector3d d = _drivePath.back() - pos;
++		d.z() = 0;
++		dist = d.getMagnitude();
++		off = angleDiff(wagon->getYawTo(_drivePath.back()).getDegrees() + (_driveReverse ? 180.f : 0.f) - yaw);
++		if (_drivePath.size() == 1 || !(dist < kDriveWaypoint || (dist < 2 * kDriveWaypoint && fabs(off) > 90.f)))
++			break;
++		_drivePath.pop_back();
++	}
++	debug(3, "Grim Mouse: drive t=%u at %.2f,%.2f yaw %.0f, %.0f deg off, %.2f to go, %d waypoints, keys %d%d%d%d",
++	      now - _driveStart, pos.x(), pos.y(), yaw, off, dist, _drivePath.size(),
++	      _driveHeld[0], _driveHeld[1], _driveHeld[2], _driveHeld[3]);
++	// (on a way out, "there" is well inside it: by then the game has taken the
++	// scene away, or it had something to say instead: Glottis won't go yet)
++	if (_drivePath.size() == 1 && dist < (_driveExit ? kDriveArrive / 3 : kDriveArrive))
++		return driveStop("there");
++	if (_drivePath.size() == 1 && !_driveExit && dist < kDrivePassed && fabs(off) > 100.f)
++		return driveStop("went past it");
++
++	if (now - _driveCheckTime >= kDriveStall) {
++		Math::Vector3d moved = pos - _driveCheckPos;
++		moved.z() = 0;
++		if (moved.getMagnitude() < kDriveStallMove && fabs(angleDiff(yaw - _driveCheckYaw)) < kDriveStallTurn)
++			return driveStop(_drivePath.size() == 1 && dist < 2 * kDrivePassed ? "as near as it gets" : "blocked");
++		_driveCheckTime = now;
++		_driveCheckPos = pos;
++		_driveCheckYaw = yaw;
++	}
++
++	// The throttle: Up (or Down going back) while roughly facing the point; let
++	// go to turn tighter. The game starts its gas script on the key going down
++	// and runs it while the key is held; once that script has rolled to a stop,
++	// holding on does nothing, so the key goes up and down again, as a player's would.
++	int gas = _driveReverse ? kDriveDown : kDriveUp;
++	driveKey(_driveReverse ? kDriveUp : kDriveDown, false);
++	bool wantGas = fabs(off) < kDriveThrottle;
++	if (wantGas && _driveHeld[gas]) {
++		bool running = LuaBase::instance()->queryVariable(_driveReverse ? "(find_script(bonewagon.reverse) ~= nil)" :
++		                                                  "(find_script(bonewagon.gas) ~= nil)", false) > 0;
++		if (!running)
++			driveKey(gas, false);
++	}
++	driveKey(gas, wantGas);
++
++	// The steering: which arrow turns the wagon the way it must go, by the
++	// rule of the game's own bonewagon.monitor_turns: rolling forward Left
++	// turns it left, rolling back Left turns it right, standing still Left
++	// turns it left on the spot.
++	if (fabs(off) <= kDriveSteer) {
++		driveKey(kDriveLeft, false);
++		driveKey(kDriveRight, false);
++	} else {
++		int st = LuaBase::instance()->queryVariable(
++			"(((bonewagon.turn_rate > 1) and 1 or 0) + ((bonewagon.walk_rate > 0) and 2 or 0))", false);
++		bool rolling = (st & 1) != 0, forward = (st & 2) != 0 || _driveHeld[kDriveUp];
++		bool leftTurnsLeft = !rolling || forward;
++		bool wantLeft = (off > 0) == leftTurnsLeft;   // a positive yaw is a turn to the left
++		driveKey(wantLeft ? kDriveRight : kDriveLeft, false);
++		driveKey(wantLeft ? kDriveLeft : kDriveRight, true);
++	}
++}
++
+ } // end of namespace Grim
+diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
+--- a/engines/grim/hotspotman.h
++++ b/engines/grim/hotspotman.h
+@@ -34,6 +34,7 @@
+ 
+ #include "common/rect.h"
+ #include "common/array.h"
++#include "common/list.h"
+ #include "common/hashmap.h"
+ #include "common/hash-str.h"
+ #include "common/events.h"
+@@ -43,6 +44,7 @@
+ 
+ namespace Grim {
+ 
++class Actor;
+ class Bitmap;
+ class SaveGame;
+ 
+@@ -61,6 +63,12 @@ struct HotObject {
+ 	Math::Vector3d _pos;
+ 	Common::Rect _rect;
+ 	bool _active;
++	// PointyClicky Edition: Manny's head has turned to it (the game's own
++	// hot_object), so the cursor confirms it. For good in a playthrough.
++	bool _noticed = false;
++	// PointyClicky Edition: the character it stands for (an Actor id, 0 if
++	// none): found where that character is drawn (LinkHotspotActor).
++	int _actor = 0;
+ };
+ 
+ struct MouseHotspot {
+@@ -112,6 +120,17 @@ public:
+ 	const Common::String &getOptionMode() const { return _curOption; }
+ 	Common::Point mannyPos2D(float zOffset);
+ 
++	/**
++	 * PointyClicky Edition, the vehicles (docs/moments.md, line 1): while the
++	 * game's Bone Wagon handler is installed, a tap is where to go. The engine
++	 * holds the original's own arrow keys (gas, reverse, steering) until the
++	 * wagon gets there, gives up when it's blocked, and lets go; a new tap
++	 * re-targets. A tap on the wagon is U (get out), two fingers E. Nothing
++	 * drives the wagon but the game's own key handler.
++	 */
++	bool driveEvent(const Common::Event &ev, const Common::Point &cursor);
++	void driveUpdate();
++
+ 	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
+ 	const Common::String &getHoverName() const { return _hoverName; }
+ 
+@@ -127,10 +146,33 @@ protected:
+ 	int inBox(const Common::Point &p);
+ 	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
+ 	void loadFlashBitmaps();
++	void refreshOutlines();
++	Actor *liveActor(int oid);
++	int actorAt(const Common::Point &p, float &depth);
++	int outlineObjectAt(const Common::Point &p, int setup);
++	static float cameraDepth(const Math::Vector3d &p);
+ 	void restoreCursor();
+ 	Common::String activeSet();
+ 	Common::Array<MouseHotspot> &hotspotsOf(const Common::String &set);
+ 
++	// the vehicles (driveEvent)
++	enum { kDriveUp, kDriveDown, kDriveLeft, kDriveRight, kDriveKeys };
++	bool vehicleHandlerOn();
++	Actor *vehicle();
++	bool groundPoint(const Common::Point &cursor, float z, Math::Vector3d &out, bool &exit);
++	void driveKey(int key, bool down);
++	void driveStop(const char *why, bool release = true);
++	bool _driving;
++	bool _driveReverse;
++	bool _driveExit;      // the tap was on a way out: drive on until the game takes the scene away
++	Math::Vector3d _driveTarget;
++	Common::List<Math::Vector3d> _drivePath;   // the game's own route, next waypoint last
++	Common::String _driveSet;
++	uint32 _driveStart, _driveCheckTime;
++	Math::Vector3d _driveCheckPos;
++	float _driveCheckYaw;
++	bool _driveHeld[kDriveKeys];
++
+ 	int _cutScene;
+ 
+ 	// dialog support
+diff --git a/engines/grim/lua_v1.cpp b/engines/grim/lua_v1.cpp
+--- a/engines/grim/lua_v1.cpp
++++ b/engines/grim/lua_v1.cpp
+@@ -1027,6 +1027,7 @@ struct luaL_reg grimMainOpcodes[] = {
+ 	// Grim Mouse (lua_v1_mouse.cpp)
+ 	{ "RegisterHotspot", LUA_OPCODE(Lua_V1, RegisterHotspot) },
+ 	{ "ActivateHotspot", LUA_OPCODE(Lua_V1, ActivateHotspot) },
++	{ "NoticeHotspot", LUA_OPCODE(Lua_V1, NoticeHotspot) },
+ 	{ "UpdateHotspot", LUA_OPCODE(Lua_V1, MouseUpdateHotspot) },
+ 	{ "SwitchControlMode", LUA_OPCODE(Lua_V1, SwitchControlMode) },
+ 	{ "NotifyWalk", LUA_OPCODE(Lua_V1, NotifyWalk) },
+@@ -1036,6 +1037,8 @@ struct luaL_reg grimMainOpcodes[] = {
+ 	{ "RenameHotspot", LUA_OPCODE(Lua_V1, RenameHotspot) },
+ 	{ "GetControlMode", LUA_OPCODE(Lua_V1, GetControlMode) },
+ 	{ "SetOptionMode", LUA_OPCODE(Lua_V1, SetOptionMode) },
++	// PointyClicky Edition: new opcodes go last (a save names a C function by its index here)
++	{ "LinkHotspotActor", LUA_OPCODE(Lua_V1, LinkHotspotActor) },
+ };
+ 
+ static struct luaL_reg grimTextOpcodes[] = {
 diff --git a/engines/grim/lua_v1.h b/engines/grim/lua_v1.h
 --- a/engines/grim/lua_v1.h
 +++ b/engines/grim/lua_v1.h
-@@ -289,6 +289,7 @@
+@@ -289,6 +289,7 @@ protected:
  	// Grim Mouse (lua_v1_mouse.cpp)
  	DECLARE_LUA_OPCODE(RegisterHotspot);
  	DECLARE_LUA_OPCODE(ActivateHotspot);
@@ -545,7 +1255,7 @@ diff --git a/engines/grim/lua_v1.h b/engines/grim/lua_v1.h
  	DECLARE_LUA_OPCODE(MouseUpdateHotspot);
  	DECLARE_LUA_OPCODE(SwitchControlMode);
  	DECLARE_LUA_OPCODE(NotifyWalk);
-@@ -298,6 +299,12 @@
+@@ -298,6 +299,12 @@ protected:
  	DECLARE_LUA_OPCODE(RenameHotspot);
  	DECLARE_LUA_OPCODE(GetControlMode);
  	DECLARE_LUA_OPCODE(SetOptionMode);
@@ -558,26 +1268,6 @@ diff --git a/engines/grim/lua_v1.h b/engines/grim/lua_v1.h
  };
  
  }
-diff --git a/engines/grim/lua_v1.cpp b/engines/grim/lua_v1.cpp
---- a/engines/grim/lua_v1.cpp
-+++ b/engines/grim/lua_v1.cpp
-@@ -1027,6 +1027,7 @@
- 	// Grim Mouse (lua_v1_mouse.cpp)
- 	{ "RegisterHotspot", LUA_OPCODE(Lua_V1, RegisterHotspot) },
- 	{ "ActivateHotspot", LUA_OPCODE(Lua_V1, ActivateHotspot) },
-+	{ "NoticeHotspot", LUA_OPCODE(Lua_V1, NoticeHotspot) },
- 	{ "UpdateHotspot", LUA_OPCODE(Lua_V1, MouseUpdateHotspot) },
- 	{ "SwitchControlMode", LUA_OPCODE(Lua_V1, SwitchControlMode) },
- 	{ "NotifyWalk", LUA_OPCODE(Lua_V1, NotifyWalk) },
-@@ -1036,6 +1037,8 @@
- 	{ "RenameHotspot", LUA_OPCODE(Lua_V1, RenameHotspot) },
- 	{ "GetControlMode", LUA_OPCODE(Lua_V1, GetControlMode) },
- 	{ "SetOptionMode", LUA_OPCODE(Lua_V1, SetOptionMode) },
-+	// PointyClicky Edition: new opcodes go last (a save names a C function by its index here)
-+	{ "LinkHotspotActor", LUA_OPCODE(Lua_V1, LinkHotspotActor) },
- };
- 
- static struct luaL_reg grimTextOpcodes[] = {
 diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
 --- a/engines/grim/lua_v1_mouse.cpp
 +++ b/engines/grim/lua_v1_mouse.cpp
@@ -589,7 +1279,7 @@ diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
  
  #include "engines/grim/lua/lauxlib.h"
  #include "engines/grim/lua/lua.h"
-@@ -59,6 +60,31 @@
+@@ -59,6 +60,31 @@ void Lua_V1::RegisterHotspot() {
  	lua_pushnumber(n);
  }
  
@@ -621,7 +1311,7 @@ diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
  void Lua_V1::ActivateHotspot() {
  	HotspotMan *hm = hotspots();
  	if (!hm)
-@@ -164,4 +190,30 @@
+@@ -164,4 +190,30 @@ void Lua_V1::SetOptionMode() {
  	lua_pushstring(old.c_str());
  }
  

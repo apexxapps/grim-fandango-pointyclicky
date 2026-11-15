@@ -13,7 +13,9 @@ grim-mouse.lab) and ScummVM's grim-patch.lab. The script is a list of steps:
   {"shot": "name"}                   -> build/bench/name.png
   {"save": 1} / {"load": 1}          the engine's own save / load, slot n
 Everything is written under build/bench (git-ignored). BENCH_DEBUG=1 draws
-every outline (grim_mouse_debug).
+every outline (grim_mouse_debug). BENCH_DEVEL=1 turns on the game's own
+developer mode (game_devel_mode: J asks for one of LucasArts' jump targets,
+Ctrl+E for a line of Lua), for reaching a scene to save in.
 """
 import json
 import os
@@ -23,7 +25,7 @@ import sys
 import time
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-KEYS = {'esc': (27, 27), 'left': (276, 0), 'right': (275, 0), 'up': (273, 0), 'down': (274, 0),
+KEYS = {'ctrl': (306, 0), 'esc': (27, 27), 'left': (276, 0), 'right': (275, 0), 'up': (273, 0), 'down': (274, 0),
         'enter': (13, 13), 'space': (32, 32)}
 
 INI = """[scummvm]
@@ -46,7 +48,8 @@ class Bench:
         os.makedirs(os.path.join(self.out, 'saves'), exist_ok=True)
         ini = os.path.join(self.out, 'scummvm.ini')
         # BENCH_DEBUG=1: every outline drawn (grim_mouse_debug)
-        open(ini, 'w').write(INI + ('grim_mouse_debug=true\n' if os.environ.get('BENCH_DEBUG') else ''))
+        open(ini, 'w').write(INI + ('grim_mouse_debug=true\n' if os.environ.get('BENCH_DEBUG') else '')
+                             + ('game_devel_mode=true\n' if os.environ.get('BENCH_DEVEL') else ''))
         self.sock_path = '/tmp/grim-bench.sock'
         try:
             os.unlink(self.sock_path)

@@ -37,6 +37,29 @@ P pick up, E examine, I inventory, Esc override.
    tap the ground behind the wagon = ↓ held; tap the wagon = U (get out).
    Grim Mouse: invented "Bone Wagon" objects (`sg.bone_drive`,
    `na.bone_drive`) and a `driveto` script.
+   **Built for Simon to try (15 Nov 2026), engine only** (HotspotMan::driveEvent
+   and driveUpdate). While `bone_wagon_button_handler` is installed, every tap
+   goes to the drive and nowhere else, so Grim Mouse's `driveto` is never
+   reached. The way there is the game's own route through the sectors the
+   wagon may use (Actor::findPath, split out of walkTo). The engine holds
+   ↑ (↓ for a point behind the wagon and within 5 units) and the arrow that turns
+   it, by the rule of the game's own `bonewagon.monitor_turns`, until the nose
+   (or tail) is within 1.2 units of the point. It lets go when it's blocked
+   (1.2 s without moving or turning), after 25 s, in a cut scene, or when the
+   scene changes. A new tap re-targets. A tap on or near a way out (the set's hot
+   sectors, which the game's Doorman watches) drives into it, so the game itself
+   changes the scene or refuses: Glottis's "low-riding street rod" line. A tap on
+   the wagon as drawn = U, two fingers = E. Proven on the bench from the save
+   below: turn on the spot, drive round the trees, back up, re-target, get out
+   and back in, the tree pump's way out, the bumpy road refused
+   (build/bench/e1-*, d3-*, f3-*, g1-*, g3-*). The save: from a new game the
+   game's own developer jump `stump` (the cut scene that takes Manny from El
+   Marrow into the forest), then played by pointer: the heart ripped out, the
+   bone, the scythe on the web, the heart back in Glottis, the Copal movie, the
+   first ride. `developerMode` was cleared before saving. `sg.bone_drive` is
+   still how a tap gets Manny back in when he's on foot (Grim Mouse's patched
+   sg.lua makes it touchable). Linking `sg.bone_wagon` to the wagon's actor
+   would retire it. Not done yet.
 2. **Forklift** (de dillopede elevator, wc wine cellar:
    `forklift_button_handler`). 1998: ↑ forward, ↓ back (out of the shaft when
    stuck), ← → turn, U or P dismount. Proposed: as the Bone Wagon (tap ground
@@ -169,6 +192,7 @@ P pick up, E examine, I inventory, Esc override.
 - Lines 19-21, the "any key" scenes: **a tap anywhere** moves on.
 - Vehicles (1-5): **not decided yet**. Simon hasn't played the game and wants to try the driving
   first, from a save at the Bone Wagon.
+  The Bone Wagon's "tap where to go" is built for him to try (line 1, 15 Nov 2026).
 
 ## For Simon to decide (as proposed)
 
