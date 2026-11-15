@@ -50,7 +50,7 @@ diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
  	    !_hotspotManager->isDialog()) {
  		// On Manny (he stands in front of whatever is behind him): from his
  		// feet to the top of his head on screen, a quarter of that either side.
-@@ -1031,10 +1042,22 @@
+@@ -1031,9 +1042,21 @@
  		if (feet.x || feet.y) {
  			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
  			int cx = (feet.x + head.x) / 2;
@@ -64,34 +64,232 @@ diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
 +			debug(1, "Grim Mouse: tap %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y,
 +			      putAway ? ": put away" : inventory ? ": coat" : "");
  		}
- 	}
++	}
 +	if (putAway) {
 +		Common::KeyState kbd(Common::KEYCODE_p, 'p');
 +		handleChars(Common::EVENT_KEYDOWN, kbd);
 +		handleControls(Common::EVENT_KEYDOWN, kbd);
 +		handleControls(Common::EVENT_KEYUP, kbd);
 +		return true;
-+	}
+ 	}
  	if (inventory) {
  		Common::KeyState kbd(Common::KEYCODE_i, 'i');
- 		handleChars(Common::EVENT_KEYDOWN, kbd);
+@@ -1363,6 +1386,15 @@
+ 		lua_PatchGrimSave();
+ 	}
+ 
++	// PointyClicky Edition: a save carries the whole Lua state, functions and
++	// all, so a save made before a fix to the edition's script would bring the
++	// old script back. Run the current one again over the restored state so it
++	// wins (mouse.lua is written so that a second run is harmless).
++	if (_hotspotManager)
++		Lua_V1::restoreMouseOpcodes();
++	if (_hotspotManager && LuaBase::instance()->dofile("mouse.lua") != 0)
++		warning("Grim Mouse: mouse.lua could not be run again after the load");
++
+ 	delete _savedState;
+ 
+ 	_justSaveLoaded = true;
+diff --git a/engines/grim/actor.h b/engines/grim/actor.h
+--- a/engines/grim/actor.h
++++ b/engines/grim/actor.h
+@@ -22,6 +22,7 @@
+ #ifndef GRIM_ACTOR_H
+ #define GRIM_ACTOR_H
+ 
++#include "common/rect.h"
+ #include "engines/grim/pool.h"
+ #include "engines/grim/object.h"
+ #include "engines/grim/color.h"
+@@ -331,6 +332,14 @@
+ 	 * @see setVisibility
+ 	 */
+ 	bool isVisible() const { return _visible; }
++	/**
++	 * PointyClicky Edition (Grim Mouse): the costume's box on screen, in game
++	 * pixels, as last drawn, so the pointer finds a character where it stands.
++	 * Measured only for actors the hotspots ask for (_screenBoxWanted).
++	 */
++	bool _screenBoxWanted = false;
++	Common::Rect _screenBox;
++	uint32 _screenBoxTime = 0;
+ 
+ 	/**
+ 	 * Sets the scale of the actor.
+diff --git a/engines/grim/actor.cpp b/engines/grim/actor.cpp
+--- a/engines/grim/actor.cpp
++++ b/engines/grim/actor.cpp
+@@ -19,6 +19,7 @@
+  *
+  */
+ 
++#include "common/system.h"
+ #include "math/line3d.h"
+ #include "math/rect2d.h"
+ 
+@@ -1754,6 +1755,17 @@
+ 				Costume *costume = *it;
+ 				drawCostume(costume);
+ 			}
++		}
++	}
++
++	if (_screenBoxWanted && g_grim->getGameType() == GType_GRIM && !_costumeStack.empty()) {
++		int x1 = 1000, y1 = 1000, x2 = -1000, y2 = -1000;
++		g_driver->startActorDraw(this);
++		_costumeStack.back()->getBoundingBox(&x1, &y1, &x2, &y2);
++		g_driver->finishActorDraw();
++		if (x1 < x2 && y1 < y2) {
++			_screenBox = Common::Rect(x1, y1, x2, y2);
++			_screenBoxTime = g_system->getMillis();
+ 		}
+ 	}
+ 
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
-@@ -61,6 +61,9 @@
+@@ -43,6 +43,7 @@
+ 
+ namespace Grim {
+ 
++class Actor;
+ class Bitmap;
+ class SaveGame;
+ 
+@@ -61,6 +62,12 @@
  	Math::Vector3d _pos;
  	Common::Rect _rect;
  	bool _active;
 +	// PointyClicky Edition: Manny's head has turned to it (the game's own
 +	// hot_object), so the cursor confirms it. For good in a playthrough.
 +	bool _noticed = false;
++	// PointyClicky Edition: the character it stands for (an Actor id, 0 if
++	// none): found where that character is drawn (LinkHotspotActor).
++	int _actor = 0;
  };
  
  struct MouseHotspot {
+@@ -127,6 +134,11 @@
+ 	int inBox(const Common::Point &p);
+ 	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
+ 	void loadFlashBitmaps();
++	void refreshOutlines();
++	Actor *liveActor(int oid);
++	int actorAt(const Common::Point &p, float &depth);
++	int outlineObjectAt(const Common::Point &p, int setup);
++	static float cameraDepth(const Math::Vector3d &p);
+ 	void restoreCursor();
+ 	Common::String activeSet();
+ 	Common::Array<MouseHotspot> &hotspotsOf(const Common::String &set);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
-@@ -318,7 +318,9 @@
+@@ -180,6 +180,13 @@
+ 	return true;
+ }
+ 
++float HotspotMan::cameraDepth(const Math::Vector3d &p) {
++	GrimCamera cam;
++	if (!currentCamera(cam))
++		return 0.f;
++	return cam.f.dotProduct(p - cam.pos);
++}
++
+ // ---------------------------------------------------------------------------
+ 
+ HotspotMan::HotspotMan() :
+@@ -208,17 +215,18 @@
+ 	return s;
+ }
+ 
+-void HotspotMan::initialize() {
+-	_hotspots.clear();
++// The outlines from the edition's data (set.bin in grim-mouse.lab).
++static bool readSetBin(Common::HashMap<Common::String, Common::Array<MouseHotspot> > &out, int &numSets) {
++	numSets = 0;
+ 	Common::SeekableReadStream *data = g_resourceloader->openNewStreamFile("set.bin");
+ 	if (!data) {
+ 		warning("Grim Mouse: set.bin not found (is grim-mouse.lab installed?)");
+-		return;
++		return false;
+ 	}
+-	int numSets = data->readSint32LE();
++	numSets = data->readSint32LE();
+ 	for (int i = 0; i < numSets; i++) {
+ 		Common::String setID = readString(data);
+-		Common::Array<MouseHotspot> &list = _hotspots[setID];
++		Common::Array<MouseHotspot> &list = out[setID];
+ 		list.clear();
+ 		int numHS = data->readSint32LE();
+ 		for (int j = 0; j < numHS; j++) {
+@@ -245,11 +253,66 @@
+ 		}
+ 	}
+ 	delete data;
++	return true;
++}
++
++void HotspotMan::initialize() {
++	_hotspots.clear();
++	int numSets = 0;
++	if (!readSetBin(_hotspots, numSets))
++		return;
+ 	loadFlashBitmaps();
+ 	_initialized = true;
+ 	debug("Grim Mouse: %d sets with hotspots", numSets);
+ }
+ 
++// PointyClicky Edition (15 Nov 2026): a save keeps every outline it was made
++// with, so a fix to the edition's outlines would never reach it. After a load
++// the outlines come from the data again. A hotspot the scripts moved
++// (UpdateHotspot) keeps its place when its shape is unchanged, and keeps its
++// link to the game's object.
++void HotspotMan::refreshOutlines() {
++	HotDict fresh;
++	int numSets = 0;
++	if (!readSetBin(fresh, numSets))
++		return;
++	for (HotDict::iterator it = fresh.begin(); it != fresh.end(); ++it) {
++		Common::Array<MouseHotspot> &list = it->_value;
++		const Common::Array<MouseHotspot> *saved = _hotspots.find(it->_key) != _hotspots.end() ? &_hotspots[it->_key] : nullptr;
++		for (uint i = 0; i < list.size(); i++) {
++			MouseHotspot &hs = list[i];
++			// the k-th hotspot with this id on this setup, in the data and in the save
++			int k = 0;
++			for (uint j = 0; j < i; j++)
++				k += (list[j]._id == hs._id && list[j]._setup == hs._setup) ? 1 : 0;
++			const MouseHotspot *old = nullptr;
++			for (uint j = 0; saved && j < saved->size(); j++) {
++				const MouseHotspot &o = (*saved)[j];
++				if (o._id == hs._id && o._setup == hs._setup && k-- == 0) {
++					old = &o;
++					break;
++				}
++			}
++			if (old && old->_objId >= 0 && old->_objId < (int)_hotobject.size() && _hotobject[old->_objId]._id == hs._id)
++				hs._objId = old->_objId;
++			else
++				for (uint n = 0; n < _hotobject.size(); n++)
++					if (_hotobject[n]._id == hs._id)
++						hs._objId = n;
++			if (old && old->_region._pnts.size() == hs._region._pnts.size() && !hs._region._pnts.empty()) {
++				Common::Point d = old->_region._pnts[0] - hs._region._pnts[0];
++				bool moved = d.x != 0 || d.y != 0;
++				for (uint j = 1; moved && j < hs._region._pnts.size(); j++)
++					moved = old->_region._pnts[j] - hs._region._pnts[j] == d;
++				if (moved)
++					for (uint j = 0; j < hs._region._pnts.size(); j++)
++						hs._region._pnts[j] += d;
++			}
++		}
++	}
++	_hotspots = fresh;
++}
++
+ void HotspotMan::loadFlashBitmaps() {
+ 	for (int i = 0; i < 8; i++) {
+ 		Common::String fn = Common::String::format("cursor%d_hl.tga", i);
+@@ -318,7 +381,9 @@
  		}
  	}
  
@@ -102,7 +300,84 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  		const int dx = 4;
  		int num_rows = _inventory.empty() ? 1 : (_inventory.size() - 1) / _cols + 1;
  		int x1 = _x0 + _w * _cols, y1 = _y0 + _h * num_rows;
-@@ -443,24 +445,17 @@
+@@ -354,6 +419,16 @@
+ 			if (hotspots[i]._setup == setup || _ctrlMode == Options)
+ 				hotspots[i]._region.draw(Color(0, 200, 200));
+ 		}
++		// orange: the characters' live boxes
++		for (uint i = 1; i < _hotobject.size(); i++) {
++			Actor *a = _hotobject[i]._active ? liveActor(i) : nullptr;
++			if (a) {
++				PrimitiveObject prim;
++				prim.createRectangle(Common::Point(a->_screenBox.left, a->_screenBox.top),
++				                     Common::Point(a->_screenBox.right, a->_screenBox.bottom), Color(255, 140, 0), false);
++				prim.draw();
++			}
++		}
+ 	}
+ 
+ 	// grim_mouse_names=true: the name of what's under the pointer, above it.
+@@ -400,6 +475,59 @@
+ 	return (c * d - b * e) / (c * a - b * b);
+ }
+ 
++// PointyClicky Edition (15 Nov 2026): characters' live outlines. An object the
++// game ties to a character (mouse.lua links X_obj to actor X) is found where the
++// character is drawn this frame (its costume's box on screen), not on a fixed
++// outline that is wrong as soon as the character moves. When the character
++// isn't drawn here, the object's outline (if any) is used as before.
++Actor *HotspotMan::liveActor(int oid) {
++	if (oid <= 0 || oid >= (int)_hotobject.size() || !_hotobject[oid]._actor)
++		return nullptr;
++	Actor *a = Actor::getPool().getObject(_hotobject[oid]._actor);
++	Set *set = g_grim->getCurrSet();
++	if (!a || !set)
++		return nullptr;
++	a->_screenBoxWanted = true;   // measured from the next frame on
++	if (!a->isVisible() || !a->isInSet(set->getName()) || a->_screenBox.isEmpty() ||
++	    g_system->getMillis() - a->_screenBoxTime > 250)
++		return nullptr;
++	return a;
++}
++
++// The touchable character under the pointer (the nearest, if several); -1 if none.
++int HotspotMan::actorAt(const Common::Point &p, float &depth) {
++	int best = -1;
++	for (uint i = 1; i < _hotobject.size(); i++) {
++		if (!_hotobject[i]._active)
++			continue;
++		Actor *a = liveActor(i);
++		if (!a || !a->_screenBox.contains(p))
++			continue;
++		float d = cameraDepth(a->getWorldPos());
++		if (best < 0 || d < depth) {
++			best = i;
++			depth = d;
++		}
++	}
++	return best;
++}
++
++// The game's object under the pointer by its outline, in the normal mode, as
++// event() would take it (the first match); -1 if none.
++int HotspotMan::outlineObjectAt(const Common::Point &p, int setup) {
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++	for (uint i = 0; i < hotspots.size(); i++) {
++		MouseHotspot &hs = hotspots[i];
++		int gid = hs._objId;
++		if (hs._setup != setup || hs._type >= 10 || hs._type == 3 || !hs._region.contains(p))
++			continue;
++		if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || liveActor(gid))
++			continue;
++		return gid;
++	}
++	return -1;
++}
++
+ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
+ 	if (!g_grim->getCurrSet())
+ 		return;
+@@ -443,30 +571,40 @@
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -138,9 +413,44 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  		return;
  	}
  
-@@ -589,7 +584,10 @@
+ 	// ------- click on hot spots ------------
+ 	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
+ 	int setup = g_grim->getCurrSet()->getSetup();
++	// a character, where it is drawn, unless an object nearer the camera is
++	// under the pointer too (a desk in front of the clerk behind it)
++	if ((_ctrlMode == Normal || _ctrlMode == NoWalk) && button > 0 && !climbing) {
++		float adepth = 0.f;
++		int aoid = actorAt(cursor, adepth);
++		if (aoid > 0) {
++			int ooid = outlineObjectAt(cursor, setup);
++			if (ooid <= 0 || cameraDepth(_hotobject[ooid]._pos) >= adepth) {
++				LuaObjects objects;
++				objects.add(button);
++				objects.add(aoid);
++				objects.add(doubleClick ? 2 : 1);
++				LuaBase::instance()->callback("mouseCommand", objects);
++				return;
++			}
++		}
++	}
+ 	for (uint i = 0; i < hotspots.size(); i++) {
+ 		MouseHotspot &hs = hotspots[i];
+ 		if (_ctrlMode == Options && hs._region.contains(cursor)) {
+@@ -497,7 +635,7 @@
+ 			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
+ 			    hs._type >= 10 || hs._type == 3 || button == 0)
+ 				continue;
+-			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active)
++			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || liveActor(gid))
+ 				continue;
+ 			LuaObjects objects;
+ 			objects.add(button);
+@@ -587,9 +725,12 @@
+ 				continue;
+ 			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
- 				if (type >= 10)
+-				if (type >= 10)
++				if (type >= 10 || liveActor(oid))
  					continue;
 -				cursor->setCursor((type == 2 || type == 3) ? 2 : 1);
 +				// Manny finds, the cursor confirms (Simon, 14 Nov 2026): lit only
@@ -150,7 +460,26 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -616,16 +614,9 @@
+@@ -609,6 +750,18 @@
+ 		}
+ 	}
+ 
++	if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
++		float adepth = 0.f;
++		int aoid = actorAt(pos, adepth);
++		if (aoid > 0) {
++			int ooid = outlineObjectAt(pos, setup);
++			if (ooid <= 0 || cameraDepth(_hotobject[ooid]._pos) >= adepth) {
++				cursor->setCursor(_hotobject[aoid]._noticed ? 1 : 0);
++				_hoverName = (_hotobject[aoid]._desc == "_") ? Common::String() : _hotobject[aoid]._desc;
++			}
++		}
++	}
++
+ 	if (_ctrlMode == Dialog) {
+ 		int dialog = inBox(pos), click = 0;
+ 		LuaObjects objects;
+@@ -616,16 +769,9 @@
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -170,7 +499,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -758,6 +749,16 @@
+@@ -758,6 +904,17 @@
  		}
  	}
  	savedState->endSection();
@@ -184,10 +513,11 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 +		}
 +		savedState->endSection();
 +	}
++	refreshOutlines();
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +813,16 @@
+@@ -812,6 +969,16 @@
  		}
  	}
  	savedState->endSection();
@@ -215,6 +545,19 @@ diff --git a/engines/grim/lua_v1.h b/engines/grim/lua_v1.h
  	DECLARE_LUA_OPCODE(MouseUpdateHotspot);
  	DECLARE_LUA_OPCODE(SwitchControlMode);
  	DECLARE_LUA_OPCODE(NotifyWalk);
+@@ -298,6 +299,12 @@
+ 	DECLARE_LUA_OPCODE(RenameHotspot);
+ 	DECLARE_LUA_OPCODE(GetControlMode);
+ 	DECLARE_LUA_OPCODE(SetOptionMode);
++	// PointyClicky Edition (after SetOptionMode, so no saved index moves)
++	DECLARE_LUA_OPCODE(LinkHotspotActor);
++
++public:
++	/** After a load: the Grim Mouse opcodes' globals set again by name (see lua_v1_mouse.cpp). */
++	static void restoreMouseOpcodes();
+ };
+ 
+ }
 diff --git a/engines/grim/lua_v1.cpp b/engines/grim/lua_v1.cpp
 --- a/engines/grim/lua_v1.cpp
 +++ b/engines/grim/lua_v1.cpp
@@ -226,10 +569,27 @@ diff --git a/engines/grim/lua_v1.cpp b/engines/grim/lua_v1.cpp
  	{ "UpdateHotspot", LUA_OPCODE(Lua_V1, MouseUpdateHotspot) },
  	{ "SwitchControlMode", LUA_OPCODE(Lua_V1, SwitchControlMode) },
  	{ "NotifyWalk", LUA_OPCODE(Lua_V1, NotifyWalk) },
+@@ -1036,6 +1037,8 @@
+ 	{ "RenameHotspot", LUA_OPCODE(Lua_V1, RenameHotspot) },
+ 	{ "GetControlMode", LUA_OPCODE(Lua_V1, GetControlMode) },
+ 	{ "SetOptionMode", LUA_OPCODE(Lua_V1, SetOptionMode) },
++	// PointyClicky Edition: new opcodes go last (a save names a C function by its index here)
++	{ "LinkHotspotActor", LUA_OPCODE(Lua_V1, LinkHotspotActor) },
+ };
+ 
+ static struct luaL_reg grimTextOpcodes[] = {
 diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
 --- a/engines/grim/lua_v1_mouse.cpp
 +++ b/engines/grim/lua_v1_mouse.cpp
-@@ -59,6 +59,16 @@
+@@ -34,6 +34,7 @@
+ #include "engines/grim/lua_v1.h"
+ #include "engines/grim/grim.h"
+ #include "engines/grim/hotspotman.h"
++#include "engines/grim/actor.h"
+ 
+ #include "engines/grim/lua/lauxlib.h"
+ #include "engines/grim/lua/lua.h"
+@@ -59,6 +60,31 @@
  	lua_pushnumber(n);
  }
  
@@ -243,6 +603,52 @@ diff --git a/engines/grim/lua_v1_mouse.cpp b/engines/grim/lua_v1_mouse.cpp
 +		hs->_noticed = true;
 +}
 +
++// PointyClicky Edition: LinkHotspotActor(id, actor), called by mouse.lua for
++// each object that stands for a character (the game's X_obj for actor X): the
++// pointer then finds it where the character is drawn, not on a fixed outline.
++void Lua_V1::LinkHotspotActor() {
++	HotspotMan *hm = hotspots();
++	if (!hm)
++		return;
++	HotObject *hs = hm->getObject((int)lua_getnumber(lua_getparam(1)));
++	lua_Object actorObj = lua_getparam(2);
++	if (!hs || !lua_isuserdata(actorObj) || lua_tag(actorObj) != MKTAG('A','C','T','R'))
++		return;
++	Actor *actor = getactor(actorObj);
++	hs->_actor = actor ? actor->getId() : 0;
++}
++
  void Lua_V1::ActivateHotspot() {
  	HotspotMan *hm = hotspots();
  	if (!hm)
+@@ -164,4 +190,30 @@
+ 	lua_pushstring(old.c_str());
+ }
+ 
++// PointyClicky Edition: a save holds the whole Lua state, globals included, and
++// names each C function by its place in the opcode tables. So after a load the
++// Grim Mouse opcodes are set again by name: one added since the save exists,
++// and none is bound to a neighbour's function if the table changed.
++void Lua_V1::restoreMouseOpcodes() {
++	static const luaL_reg mouseOpcodes[] = {
++		{ "RegisterHotspot", LUA_OPCODE(Lua_V1, RegisterHotspot) },
++		{ "ActivateHotspot", LUA_OPCODE(Lua_V1, ActivateHotspot) },
++		{ "NoticeHotspot", LUA_OPCODE(Lua_V1, NoticeHotspot) },
++		{ "UpdateHotspot", LUA_OPCODE(Lua_V1, MouseUpdateHotspot) },
++		{ "SwitchControlMode", LUA_OPCODE(Lua_V1, SwitchControlMode) },
++		{ "NotifyWalk", LUA_OPCODE(Lua_V1, NotifyWalk) },
++		{ "RegisterInventory", LUA_OPCODE(Lua_V1, RegisterInventory) },
++		{ "MouseDown", LUA_OPCODE(Lua_V1, MouseDown) },
++		{ "InteractMode", LUA_OPCODE(Lua_V1, InteractMode) },
++		{ "RenameHotspot", LUA_OPCODE(Lua_V1, RenameHotspot) },
++		{ "GetControlMode", LUA_OPCODE(Lua_V1, GetControlMode) },
++		{ "SetOptionMode", LUA_OPCODE(Lua_V1, SetOptionMode) },
++		{ "LinkHotspotActor", LUA_OPCODE(Lua_V1, LinkHotspotActor) },
++	};
++	lua_beginblock();
++	for (uint i = 0; i < ARRAYSIZE(mouseOpcodes); i++)
++		lua_register(mouseOpcodes[i].name, mouseOpcodes[i].func);
++	lua_endblock();
++}
++
+ } // end of namespace Grim

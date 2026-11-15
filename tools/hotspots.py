@@ -142,7 +142,11 @@ def raw_line(path, h):
     for l in _RAW[path]:
         start, _, rest = l.partition('"')
         setup, _, hid = start.strip().partition(' ')
-        if int(setup) == h['setup'] and hid.strip('/') == h['id'] and rest.partition('"')[0] == h['name']:
+        name, _, after = rest.partition('"')
+        # the type too: an object and its walk path (or Grim Mouse's
+        # actor-following copy) can share setup, id and name
+        if (int(setup) == h['setup'] and hid.strip('/') == h['id'] and name == h['name'] and
+                int(after.split()[0]) == h['type']):
             return l
     return line(h['setup'], h['id'], h['name'], h['type'], h['poly'])
 
