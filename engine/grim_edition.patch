@@ -366,10 +366,10 @@ index bc268b4..72f06ea 100644
  	/**
  	 * Sets the scale of the actor.
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
-index 7df0c64..8ac2317 100644
+index 7df0c64..150c04a 100644
 --- a/engines/grim/grim.cpp
 +++ b/engines/grim/grim.cpp
-@@ -828,8 +828,10 @@ void GrimEngine::luaUpdate() {
+@@ -828,8 +828,11 @@ void GrimEngine::luaUpdate() {
  		_frameTime = 0;
  	}
  
@@ -377,11 +377,12 @@ index 7df0c64..8ac2317 100644
 +	if (_hotspotManager) {
  		_hotspotManager->cutSceneMode(LuaBase::instance()->queryVariable("cutSceneLevel", true));
 +		_hotspotManager->driveUpdate();
++		_hotspotManager->momentUpdate();
 +	}
  
  	LuaBase::instance()->update(_frameTime, _movieTime);
  
-@@ -997,9 +999,22 @@ void GrimEngine::drawCursor() {
+@@ -997,9 +1000,22 @@ void GrimEngine::drawCursor() {
  	_cursor->draw();
  }
  
@@ -406,17 +407,29 @@ index 7df0c64..8ac2317 100644
  bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	if (!_hotspotManager || _mode == SmushMode)
  		return false;
-@@ -1014,6 +1029,9 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1009,11 +1025,21 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+ 		_hotspotManager->hover(_cursor->getPosition());
+ 		return true;
+ 	}
++	// PointyClicky Edition: a finger lifted ends a key held for it (the extinguisher)
++	if ((type == Common::EVENT_LBUTTONUP || type == Common::EVENT_RBUTTONUP) &&
++	    _hotspotManager->momentEvent(event, _cursor->getPosition()))
++		return true;
+ 	if (type != Common::EVENT_LBUTTONDOWN && type != Common::EVENT_RBUTTONDOWN &&
+ 	    type != Common::EVENT_MBUTTONDOWN && type != Common::EVENT_WHEELUP && type != Common::EVENT_WHEELDOWN) {
  		return type == Common::EVENT_LBUTTONUP || type == Common::EVENT_RBUTTONUP || type == Common::EVENT_MBUTTONUP;
  	}
  	_cursor->updatePosition(event.mouse);
 +	// PointyClicky Edition: in a vehicle, a tap is where to go
 +	if (_hotspotManager->driveEvent(event, _cursor->getPosition()))
 +		return true;
++	// ... and in the other moments the game takes the controls, its own keys
++	if (_hotspotManager->momentEvent(event, _cursor->getPosition()))
++		return true;
  	bool doubleClick = false;
  	if (type == Common::EVENT_LBUTTONDOWN) {
  		uint32 now = g_system->getMillis();
-@@ -1022,7 +1040,10 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1022,7 +1048,10 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	}
  	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
  	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
@@ -428,7 +441,7 @@ index 7df0c64..8ac2317 100644
  	    !_hotspotManager->isDialog()) {
  		// On Manny (he stands in front of whatever is behind him): from his
  		// feet to the top of his head on screen, a quarter of that either side.
-@@ -1031,10 +1052,22 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1031,10 +1060,22 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  		if (feet.x || feet.y) {
  			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
  			int cx = (feet.x + head.x) / 2;
@@ -453,7 +466,7 @@ index 7df0c64..8ac2317 100644
  	if (inventory) {
  		Common::KeyState kbd(Common::KEYCODE_i, 'i');
  		handleChars(Common::EVENT_KEYDOWN, kbd);
-@@ -1363,6 +1396,15 @@ void GrimEngine::savegameRestore() {
+@@ -1363,6 +1404,15 @@ void GrimEngine::savegameRestore() {
  		lua_PatchGrimSave();
  	}
  
@@ -470,10 +483,10 @@ index 7df0c64..8ac2317 100644
  
  	_justSaveLoaded = true;
 diff --git a/engines/grim/grim.h b/engines/grim/grim.h
-index 0ac3cff..e176d62 100644
+index 0ac3cff..343d626 100644
 --- a/engines/grim/grim.h
 +++ b/engines/grim/grim.h
-@@ -223,6 +223,14 @@ protected:
+@@ -223,6 +223,17 @@ protected:
  	void pauseEngineIntern(bool pause) override;
  
  	void handleControls(Common::EventType type, const Common::KeyState &key);
@@ -484,15 +497,18 @@ index 0ac3cff..e176d62 100644
 +	// ... or held down until let go (a vehicle's arrows, held as the player
 +	// held them: the scripts read the key's state each frame).
 +	void holdGameKey(Common::KeyCode code, bool down);
++	// ... and a held-back press played as the tap it turned out to be (the
++	// extinguisher: a press is a spray only once it's held).
++	bool replayMouseEvent(Common::Event &event) { return handleMouseEvent(event); }
 +protected:
  	void handleChars(Common::EventType type, const Common::KeyState &key);
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..096caad 100644
+index f6552fb..310a859 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
-@@ -42,6 +42,7 @@
+@@ -42,10 +42,12 @@
  #include "engines/grim/lua.h"
  #include "engines/grim/resource.h"
  #include "engines/grim/savegame.h"
@@ -500,7 +516,12 @@ index f6552fb..096caad 100644
  
  namespace Grim {
  
-@@ -180,13 +181,24 @@ bool HotspotMan::raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1) {
+ static const int kGameW = 640, kGameH = 480;
++static float luaNumber(const Common::String &expr);
+ 
+ void HotPolygon::draw(const Color &col) {
+ 	for (uint i = 0; i < _pnts.size(); i++) {
+@@ -180,13 +182,28 @@ bool HotspotMan::raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1) {
  	return true;
  }
  
@@ -518,7 +539,11 @@ index f6552fb..096caad 100644
 -	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr) {
 +	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr),
 +	_driving(false), _driveKind(0), _driveReverse(false), _driveExit(false), _driveStart(0), _driveCheckTime(0),
-+	_drivePressTime(0), _driveCheckYaw(0), _cranePoint(0), _craneLast(0) {
++	_drivePressTime(0), _driveCheckYaw(0), _cranePoint(0), _craneLast(0),
++	_momKind(0), _momNumHeld(0), _momStart(0), _momCheckTime(0), _momLastPress(0), _momTarget(0), _momCheckS(0),
++	_momArrive(0), _momFwd(Common::KEYCODE_UP), _momBack(Common::KEYCODE_DOWN), _momGoal(0), _momThen(0),
++	_fingerKey(Common::KEYCODE_u), _fingerDown(false), _fingerRelease(false), _fingerTime(0), _fingerPending(false),
++	_replaying(false) {
  	for (int i = 0; i < 8; i++)
  		_flashBitmaps[i] = nullptr;
 +	for (int i = 0; i < kDriveKeys; i++)
@@ -526,7 +551,7 @@ index f6552fb..096caad 100644
  	ConfMan.registerDefault("grim_mouse_debug", false);
  	ConfMan.registerDefault("grim_mouse_names", false);
  	_showDebug = ConfMan.getBool("grim_mouse_debug");
-@@ -208,17 +220,18 @@ static Common::String readString(Common::SeekableReadStream *data) {
+@@ -208,17 +225,18 @@ static Common::String readString(Common::SeekableReadStream *data) {
  	return s;
  }
  
@@ -550,7 +575,7 @@ index f6552fb..096caad 100644
  		list.clear();
  		int numHS = data->readSint32LE();
  		for (int j = 0; j < numHS; j++) {
-@@ -245,11 +258,66 @@ void HotspotMan::initialize() {
+@@ -245,11 +263,66 @@ void HotspotMan::initialize() {
  		}
  	}
  	delete data;
@@ -617,7 +642,7 @@ index f6552fb..096caad 100644
  void HotspotMan::loadFlashBitmaps() {
  	for (int i = 0; i < 8; i++) {
  		Common::String fn = Common::String::format("cursor%d_hl.tga", i);
-@@ -318,7 +386,9 @@ void HotspotMan::drawActive() {
+@@ -318,7 +391,9 @@ void HotspotMan::drawActive() {
  		}
  	}
  
@@ -628,7 +653,7 @@ index f6552fb..096caad 100644
  		const int dx = 4;
  		int num_rows = _inventory.empty() ? 1 : (_inventory.size() - 1) / _cols + 1;
  		int x1 = _x0 + _w * _cols, y1 = _y0 + _h * num_rows;
-@@ -354,6 +424,16 @@ void HotspotMan::drawActive() {
+@@ -354,6 +429,16 @@ void HotspotMan::drawActive() {
  			if (hotspots[i]._setup == setup || _ctrlMode == Options)
  				hotspots[i]._region.draw(Color(0, 200, 200));
  		}
@@ -645,7 +670,7 @@ index f6552fb..096caad 100644
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -400,6 +480,59 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
+@@ -400,6 +485,59 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
  	return (c * d - b * e) / (c * a - b * b);
  }
  
@@ -705,7 +730,7 @@ index f6552fb..096caad 100644
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
  	if (!g_grim->getCurrSet())
  		return;
-@@ -443,30 +576,40 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -443,30 +581,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -752,6 +777,7 @@ index f6552fb..096caad 100644
 +		if (aoid > 0) {
 +			int ooid = outlineObjectAt(cursor, setup);
 +			if (ooid <= 0 || cameraDepth(_hotobject[ooid]._pos) >= adepth) {
++				debug(1, "Grim Mouse: tap on %s (as drawn)", _hotobject[aoid]._desc.c_str());
 +				LuaObjects objects;
 +				objects.add(button);
 +				objects.add(aoid);
@@ -764,16 +790,18 @@ index f6552fb..096caad 100644
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,7 +640,7 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -497,8 +646,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
 -			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active)
 +			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || liveActor(gid))
  				continue;
++			debug(1, "Grim Mouse: tap on %s", _hotobject[gid]._desc.c_str());
  			LuaObjects objects;
  			objects.add(button);
-@@ -587,9 +730,12 @@ void HotspotMan::hover(const Common::Point &pos) {
+ 			objects.add(gid);
+@@ -587,9 +737,12 @@ void HotspotMan::hover(const Common::Point &pos) {
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
@@ -788,7 +816,7 @@ index f6552fb..096caad 100644
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +755,18 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -609,6 +762,31 @@ void HotspotMan::hover(const Common::Point &pos) {
  		}
  	}
  
@@ -804,10 +832,23 @@ index f6552fb..096caad 100644
 +		}
 +	}
 +
++	// Copal's computer: pointing at a reply moves the selection there, by the
++	// game's own Up and Down (docs/moments.md line 11); the list scrolls only on a tap
++	if (_ctrlMode == Dialog && pos.x >= 160 && pos.x <= 500 && pos.y >= 140 && pos.y < 380 &&
++	    (_momKind == kMNone || _momKind == kMComputer) && momentKind() == kMComputer) {
++		int goal = (int)luaNumber("co.computer.top_line") + (pos.y - 140) / 40;
++		if (goal != (int)luaNumber("co.computer.selection") && (_momKind == kMNone || _momGoal != goal)) {
++			_momKind = kMComputer;
++			_momGoal = goal;
++			_momThen = 0;
++			_momStart = g_system->getMillis();
++		}
++		return;
++	}
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +774,9 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -616,16 +794,9 @@ void HotspotMan::hover(const Common::Point &pos) {
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -827,7 +868,7 @@ index f6552fb..096caad 100644
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -698,6 +849,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -698,6 +869,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -836,7 +877,7 @@ index f6552fb..096caad 100644
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +911,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
+@@ -758,6 +931,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -854,7 +895,7 @@ index f6552fb..096caad 100644
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +976,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
+@@ -812,6 +996,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -871,7 +912,7 @@ index f6552fb..096caad 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1093,590 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1113,1120 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -1086,7 +1127,7 @@ index f6552fb..096caad 100644
 +// One key, pressed and let go, as the 1998 player pressed it.
 +static void pressKey(Common::KeyCode code, uint16 ascii, const char *what) {
 +	g_grim->pressGameKey(code, ascii);
-+	debug(1, "Grim Mouse: vehicle tap: %s", what);
++	debug(1, "Grim Mouse: key: %s", what);
 +}
 +
 +bool HotspotMan::driveEvent(const Common::Event &ev, const Common::Point &cursor) {
@@ -1461,9 +1502,539 @@ index f6552fb..096caad 100644
 +	}
 +}
 +
++// ---------------------------------------------------------------------------
++// PointyClicky Edition: the other moments the game takes the controls
++// (docs/moments.md, lines 6-24). As with the vehicles, nothing here moves Manny
++// or works a machine: a tap becomes the original's keys for the game's own
++// handler, and the scripts do the rest.
++//
++//   the wheelbarrow (wheelbarrow_button_handler), the anchor room crawl
++//   (drift_button_handler, also how Manny comes back from the Lamancha), the
++//   conveyor chain (cy.drift_button_handler) and the ladders (the normal
++//   handler while is_climbing): a tap along Manny's way is where to go, Up or
++//   Down held until he's there;
++//   Copal's computer (co.computer), the ticket printer (tpButtonHandler) and
++//   the elevator's floors (br2): the arrows pressed one at a time until the
++//   reply, the dial or the floor tapped is the selected one, then U (Enter);
++//   the roulette panel, the vault's wheel, the broadaxe, the rope on the
++//   ledge, the meadow, the three one-key scenes and Chepito's hand-over: a
++//   tap on the thing is its key;
++//   the fire extinguisher: held, U is held (a quick tap is a tap).
++
++static const uint32 kMomentStall = 1500;      // along a line: no progress in this long, blocked
++static const uint32 kMomentTimeout = 30000;
++static const uint32 kQueueGap = 250;          // a queued press no sooner than this after the last
++static const uint32 kQueueHold = 100;         // ... and held this long
++static const uint32 kQueueTimeout = 8000;
++static const uint32 kFingerTap = 250;         // the extinguisher: a press let go sooner is a tap
++static const uint32 kFingerMinHold = 120;     // a key held for a finger is held at least this long
++
++static const char *const kMomentNames[] = { "", "wheelbarrow", "crawl", "chain", "computer", "roulette panel",
++	"ticket printer", "vault wheel", "broadaxe", "extinguisher", "extinguisher (spraying)", "rope", "meadow",
++	"one key", "hand-over", "elevator", "ladder" };
++
++// Which of the game's handlers is installed (kMNone if none of these).
++int HotspotMan::momentKind() {
++	return (int)luaNumber(
++		"((wheelbarrow_button_handler ~= nil and system.buttonHandler == wheelbarrow_button_handler) and 1) or "
++		"((drift_button_handler ~= nil and system.buttonHandler == drift_button_handler) and 2) or "
++		"((cy ~= nil and cy.drift_button_handler ~= nil and system.buttonHandler == cy.drift_button_handler) and 3) or "
++		"((co ~= nil and co.computer ~= nil and system.buttonHandler == co.computer) and 4) or "
++		"((roulettePanelButtonHandler ~= nil and system.buttonHandler == roulettePanelButtonHandler) and 5) or "
++		"((tpButtonHandler ~= nil and system.buttonHandler == tpButtonHandler) and 6) or "
++		"((vd ~= nil and vd.buttonHandler ~= nil and system.buttonHandler == vd.buttonHandler) and 7) or "
++		"((axeButtonHandler ~= nil and system.buttonHandler == axeButtonHandler) and 8) or "
++		"((fireExtinguisherHandler ~= nil and system.buttonHandler == fireExtinguisherHandler) and 10) or "
++		"((system.buttonHandler == SampleButtonHandler and bd ~= nil and system.currentSet == bd and manny.is_holding ~= nil and "
++		"manny.is_holding == bd.extinguisher) and 9) or "
++		"((ledge_rope_button_handler ~= nil and system.buttonHandler == ledge_rope_button_handler) and 11) or "
++		"((dead_button_handler ~= nil and system.buttonHandler == dead_button_handler) and 12) or "
++		"((shiver_button_handler ~= nil and system.buttonHandler == shiver_button_handler) and 13) or "
++		"((camera_button_handler ~= nil and system.buttonHandler == camera_button_handler) and 13) or "
++		"((pfButtonHandler ~= nil and system.buttonHandler == pfButtonHandler) and 13) or "
++		"((suButtonHandler ~= nil and system.buttonHandler == suButtonHandler) and 14) or "
++		"((br2 ~= nil and system.buttonHandler == br2) and 15) or "
++		"((system.buttonHandler == SampleButtonHandler and system.currentActor ~= nil and system.currentActor.is_climbing) and 16) or 0");
++}
++
++// Manny as drawn: from his feet to the top of his head, a quarter of that
++// either side (as the tap on Manny that opens the coat).
++static bool onManny(HotspotMan *hm, const Common::Point &p) {
++	Common::Point feet = hm->mannyPos2D(0.f), head = hm->mannyPos2D(0.6f);
++	if (!feet.x && !feet.y)
++		return false;
++	int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4, cx = (feet.x + head.x) / 2;
++	return p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
++}
++
++// Which way an actor faces (Grim's own forward vector, Actor::walkForward).
++static Math::Vector3d facing(Actor *a) {
++	float y = a->getYaw().getRadians();
++	return Math::Vector3d(-sin(y), cos(y), 0.f);
++}
++
++void HotspotMan::momentHold(Common::KeyCode code, bool down) {
++	int i = 0;
++	while (i < _momNumHeld && _momHeld[i] != code)
++		i++;
++	if (down == (i < _momNumHeld))
++		return;
++	if (down) {
++		if (_momNumHeld >= 4)
++			return;
++		_momHeld[_momNumHeld++] = code;
++	} else
++		_momHeld[i] = _momHeld[--_momNumHeld];
++	g_grim->holdGameKey(code, down);
++}
++
++void HotspotMan::momentStop(const char *why) {
++	while (_momNumHeld > 0)
++		momentHold(_momHeld[0], false);
++	if (_momKind != kMNone)
++		debug(1, "Grim Mouse: %s: ends (%s)", kMomentNames[_momKind], why);
++	_momKind = kMNone;
++}
++
++// A tap along Manny's way: the point of his line (through where he is, along
++// the moment's axis) nearest the tap on screen. Up (or Down) is held until he
++// gets there.
++bool HotspotMan::momentLine(int kind, const Common::Point &cursor) {
++	Actor *manny = getManny();
++	if (!manny)
++		return true;
++	Math::Vector3d axis, ref;   // ref: the part of Manny the tap is measured against
++	float range = 8.f;
++	if (kind == kMWheelbarrow || kind == kMCrawl)
++		axis = facing(manny);
++	else if (kind == kMChain) {
++		// the chain runs from the game's own bottom drift point to its top one
++		axis = luaPoint("cy.chain_drift_top.pos.x", "cy.chain_drift_top.pos.y", "cy.chain_drift_top.pos.z") -
++		       luaPoint("cy.chain_drift_bottom.pos.x", "cy.chain_drift_bottom.pos.y", "cy.chain_drift_bottom.pos.z");
++		range = 3.f;
++	} else {
++		axis = Math::Vector3d(0, 0, 1);
++		ref = Math::Vector3d(0, 0, 0.25f);   // his middle on the ladder, not his feet
++		range = 15.f;
++	}
++	if (axis.getMagnitude() < 1e-4f)
++		return true;
++	axis.normalize();
++	Math::Vector3d at = manny->getPos() + ref;
++	float best = 0.f;
++	int bestD = -1;
++	for (float sv = -range; sv <= range; sv += 0.025f) {
++		int x, y;
++		if (!worldToScreen(at + axis * sv, x, y))
++			continue;
++		int d = (x - cursor.x) * (x - cursor.x) + (y - cursor.y) * (y - cursor.y);
++		if (bestD < 0 || d < bestD) {
++			bestD = d;
++			best = sv;
++		}
++	}
++	if (bestD < 0)
++		return true;
++	momentStop("re-targeted");
++	_momKind = kind;
++	_momAxis = axis;
++	_momOrigin = manny->getPos();
++	_momTarget = best;
++	_momCheckS = 0.f;
++	_momArrive = kind == kMLadder ? 0.15f : kind == kMChain ? 0.05f : 0.1f;
++	_momFwd = Common::KEYCODE_UP;
++	_momBack = Common::KEYCODE_DOWN;
++	_momStart = _momCheckTime = g_system->getMillis();
++	debug(1, "Grim Mouse: %s: to %.2f along the way (tap %d,%d)", kMomentNames[kind], best, cursor.x, cursor.y);
++	lineUpdate();
++	return true;
++}
++
++void HotspotMan::lineUpdate() {
++	Actor *manny = getManny();
++	if (!manny)
++		return momentStop("no Manny");
++	uint32 now = g_system->getMillis();
++	if (now - _momStart > kMomentTimeout)
++		return momentStop("took too long");
++	float s = (manny->getPos() - _momOrigin).dotProduct(_momAxis);
++	float togo = _momTarget - s;
++	if (fabs(togo) < _momArrive)
++		return momentStop("there");
++	if (now - _momCheckTime >= kMomentStall) {
++		if (fabs(s - _momCheckS) < 0.01f)
++			return momentStop("as far as it goes");
++		_momCheckTime = now;
++		_momCheckS = s;
++	}
++	Common::KeyCode want = togo > 0 ? _momFwd : _momBack;
++	momentHold(want == _momFwd ? _momBack : _momFwd, false);
++	momentHold(want, true);
++}
++
++// The broadaxe: Manny drags it backwards, so a tap on the floor is turned to
++// (his back to it: Left or Right held), then backed to (Down held).
++void HotspotMan::axeUpdate() {
++	Actor *manny = getManny();
++	if (!manny)
++		return momentStop("no Manny");
++	uint32 now = g_system->getMillis();
++	if (now - _momStart > kMomentTimeout)
++		return momentStop("took too long");
++	Math::Vector3d d = _momPoint - manny->getPos();
++	d.z() = 0;
++	float dist = d.getMagnitude();
++	float off = angleDiff(manny->getYawTo(_momPoint).getDegrees() + 180.f - manny->getYaw().getDegrees());
++	if (dist < 0.25f || (_momNumHeld && _momHeld[0] == Common::KEYCODE_DOWN && fabs(off) > 100.f))
++		return momentStop("there");
++	bool backing = false;
++	for (int i = 0; i < _momNumHeld; i++)
++		backing |= _momHeld[i] == Common::KEYCODE_DOWN;
++	if (fabs(off) > (backing ? 35.f : 12.f)) {
++		// vo.turn_left adds to the yaw (a positive turn), vo.turn_right takes away
++		momentHold(Common::KEYCODE_DOWN, false);
++		momentHold(off > 0 ? Common::KEYCODE_RIGHT : Common::KEYCODE_LEFT, false);
++		momentHold(off > 0 ? Common::KEYCODE_LEFT : Common::KEYCODE_RIGHT, true);
++		_momCheckTime = now;
++		return;
++	}
++	momentHold(Common::KEYCODE_LEFT, false);
++	momentHold(Common::KEYCODE_RIGHT, false);
++	if (now - _momCheckTime >= kMomentStall) {
++		Math::Vector3d moved = manny->getPos() - _momOrigin;
++		moved.z() = 0;
++		if (backing && moved.getMagnitude() < 0.02f)
++			return momentStop("blocked");
++		_momCheckTime = now;
++		_momOrigin = manny->getPos();
++	}
++	momentHold(Common::KEYCODE_DOWN, true);
++}
++
++// One press at a time, when the game is ready for the next, until the goal is
++// selected; then the press that acts on it (_momThen: a key, 0 for none).
++void HotspotMan::queueUpdate() {
++	uint32 now = g_system->getMillis();
++	if (now - _momStart > kQueueTimeout)
++		return momentStop("took too long");
++	// each press is held a moment (the game's scripts loop while the key is
++	// down, so a key let go in the same frame does nothing), then let go
++	if (_momNumHeld > 0) {
++		if (now - _momLastPress >= kQueueHold)
++			momentHold(_momHeld[0], false);
++		return;
++	}
++	if (now - _momLastPress < kQueueGap)
++		return;
++	int cur;
++	Common::KeyCode key = Common::KEYCODE_INVALID;
++	if (_momKind == kMComputer) {
++		if (!luaTrue("not find_script(co.computer.wait_for_joystick_release) and cutSceneLevel <= 0"))
++			return;
++		cur = (int)luaNumber("co.computer.selection");
++		if (cur != _momGoal)
++			key = cur < _momGoal ? Common::KEYCODE_DOWN : Common::KEYCODE_UP;
++	} else if (_momKind == kMPrinter) {
++		if (!luaTrue("not find_script(tp.move_left) and not find_script(tp.move_right) and not find_script(tp.push_up) and "
++		             "not find_script(tp.push_down) and cutSceneLevel <= 0"))
++			return;
++		// the hands go round the dials as tp.move_left takes them: race, day, week, print
++		static const char *const order[] = { "tp.RACE", "tp.DAY", "tp.WEEK", "tp.PRINT" };
++		cur = (int)luaNumber("tp.current_button");
++		int ci = -1, gi = -1;
++		for (int i = 0; i < 4; i++) {
++			int v = (int)luaNumber(order[i]);
++			if (v == cur)
++				ci = i;
++			if (v == _momGoal)
++				gi = i;
++		}
++		if (ci < 0 || gi < 0)
++			return momentStop("no such dial");
++		if (ci != gi)
++			key = ((gi - ci + 4) % 4) <= 2 ? Common::KEYCODE_LEFT : Common::KEYCODE_RIGHT;
++	} else {   // the elevator
++		if (!luaTrue("not find_script(br2.line_up) and not find_script(br2.line_down) and not find_script(br2.choose_line)"))
++			return;
++		cur = (int)luaNumber("br2.current_line");
++		if (cur != _momGoal)
++			key = cur < _momGoal ? Common::KEYCODE_DOWN : Common::KEYCODE_UP;
++	}
++	if (key == Common::KEYCODE_INVALID) {
++		int then = _momThen;
++		const char *what = kMomentNames[_momKind];
++		_momKind = kMNone;
++		if (then) {
++			g_grim->pressGameKey((Common::KeyCode)then, then < 128 ? then : 0);
++			debug(1, "Grim Mouse: %s: there, key %d", what, then);
++		} else
++			debug(1, "Grim Mouse: %s: there", what);
++		return;
++	}
++	momentHold(key, true);
++	_momLastPress = now;
++}
++
++bool HotspotMan::momentEvent(const Common::Event &ev, const Common::Point &cursor) {
++	if (_replaying || !g_grim->getCurrSet())
++		return false;
++	bool up = ev.type == Common::EVENT_LBUTTONUP || ev.type == Common::EVENT_RBUTTONUP;
++	if (up) {
++		// the finger lifts: a held-back press was a tap after all, or a held key goes up
++		if (_fingerPending) {
++			_fingerPending = false;
++			_replaying = true;
++			Common::Event e = _fingerEvent;
++			g_grim->replayMouseEvent(e);
++			_replaying = false;
++			debug(1, "Grim Mouse: extinguisher: a tap");
++			return true;
++		}
++		if (_fingerDown) {
++			_fingerRelease = true;
++			momentUpdate();
++			return true;
++		}
++		return false;
++	}
++	if (ev.type != Common::EVENT_LBUTTONDOWN && ev.type != Common::EVENT_RBUTTONDOWN)
++		return false;
++	int kind = momentKind();
++	if (kind == kMNone)
++		return false;
++	bool look = ev.type == Common::EVENT_RBUTTONDOWN || ev.kbd.hasFlags(Common::KBD_ALT);
++	if (kind == kMExtinguisher) {
++		// ready to spray: two fingers, a tap on Manny (put it away) and quick taps
++		// are the usual pointer; a press held is U held
++		if (look || onManny(this, cursor) || _cutScene > 0)
++			return false;
++		_fingerPending = true;
++		_fingerEvent = ev;
++		_fingerTime = g_system->getMillis();
++		return true;
++	}
++	// the game's handler has the controls: no tap goes anywhere else
++	if (_cutScene > 0 && kind != kMAnyKey)
++		return true;
++	if (look) {
++		momentStop("look");
++		pressKey(Common::KEYCODE_e, 'e', "two fingers: E");
++		return true;
++	}
++	Set *set = g_grim->getCurrSet();
++	int setup = set->getSetup();
++	Common::String region;
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++	for (uint i = 0; i < hotspots.size(); i++)
++		if (hotspots[i]._setup == setup && hotspots[i]._type >= 10 && hotspots[i]._region.contains(cursor))
++			region = hotspots[i]._id;
++
++	switch (kind) {
++	case kMWheelbarrow:
++		if (onManny(this, cursor) || onActor(luaActor("tr.barrow"), cursor)) {
++			momentStop("let go");
++			pressKey(Common::KEYCODE_u, 'u', "wheelbarrow: U (let go)");
++			return true;
++		}
++		return momentLine(kind, cursor);
++	case kMCrawl:
++	case kMChain:
++	case kMLadder:
++		return momentLine(kind, cursor);
++	case kMComputer: {
++		// the six replies on screen (co.computer.text: from y 150, 40 apart)
++		int row = (cursor.y - 140) / 40;
++		if (cursor.y < 140 || row > 5 || cursor.x < 160 || cursor.x > 500)
++			return true;
++		int top = (int)luaNumber("co.computer.top_line");
++		bool more = (int)luaNumber("(co.computer.choices[co.computer.top_line + 6] ~= nil) and 1 or 0") != 0;
++		momentStop("re-targeted");
++		_momKind = kind;
++		_momStart = g_system->getMillis();
++		_momLastPress = 0;
++		if (row == 5 && more) {
++			_momGoal = top + 6;   // the next reply: the list scrolls
++			_momThen = 0;
++		} else if (row == 0 && top > 0) {
++			_momGoal = top - 1;   // the one before: the list scrolls back
++			_momThen = 0;
++		} else {
++			_momGoal = top + row;
++			_momThen = Common::KEYCODE_u;
++		}
++		debug(1, "Grim Mouse: computer: reply %d (row %d, top %d)%s", _momGoal + 1, row, top, _momThen ? ", then U" : "");
++		queueUpdate();
++		return true;
++	}
++	case kMRoulette:
++		if (region == "sxmagnet")
++			pressKey(Common::KEYCODE_u, 'u', "roulette panel: the switch, U");
++		return true;
++	case kMPrinter: {
++		const char *dial = nullptr;
++		int then = 0;
++		if (region == "sxlup" || region == "sxldn")
++			dial = "tp.WEEK";
++		else if (region == "sxmup" || region == "sxmdn")
++			dial = "tp.DAY";
++		else if (region == "sxrup" || region == "sxrdn")
++			dial = "tp.RACE";
++		else if (region == "sxprint")
++			dial = "tp.PRINT";
++		if (!dial)
++			return true;
++		then = region.hasSuffix("up") ? Common::KEYCODE_UP : Common::KEYCODE_DOWN;
++		momentStop("re-targeted");
++		_momKind = kind;
++		_momGoal = (int)luaNumber(dial);
++		_momThen = then;
++		_momStart = g_system->getMillis();
++		_momLastPress = 0;
++		debug(1, "Grim Mouse: ticket printer: %s, then %s", dial, then == Common::KEYCODE_UP ? "Up" : "Down");
++		queueUpdate();
++		return true;
++	}
++	case kMVault:
++		// the wheel's right half turns it clockwise (Right), its left half back (Left),
++		// for as long as the finger is down
++		if (region != "sxleft" && region != "sxright")
++			return true;
++		_fingerKey = region == "sxright" ? Common::KEYCODE_RIGHT : Common::KEYCODE_LEFT;
++		_fingerDown = true;
++		_fingerRelease = false;
++		_fingerTime = g_system->getMillis();
++		g_grim->holdGameKey(_fingerKey, true);
++		debug(1, "Grim Mouse: vault wheel: %s held", region == "sxright" ? "Right" : "Left");
++		return true;
++	case kMAxe: {
++		if (onManny(this, cursor)) {
++			momentStop("drop");
++			pressKey(Common::KEYCODE_u, 'u', "broadaxe: U (drop it)");
++			return true;
++		}
++		Actor *manny = getManny();
++		Math::Vector3d target;
++		bool exit;
++		if (!manny || !groundPoint(cursor, manny->getPos().z(), 0.f, target, exit))
++			return true;
++		momentStop("re-targeted");
++		_momKind = kind;
++		_momPoint = target;
++		_momOrigin = manny->getPos();
++		_momStart = _momCheckTime = g_system->getMillis();
++		debug(1, "Grim Mouse: broadaxe: back to %.2f,%.2f (tap %d,%d)", target.x(), target.y(), cursor.x, cursor.y);
++		axeUpdate();
++		return true;
++	}
++	case kMSpraying:
++		// spraying with no finger on it (the game started it from a tap): this stops it
++		if (!_fingerDown) {
++			g_grim->holdGameKey(Common::KEYCODE_u, true);
++			g_grim->holdGameKey(Common::KEYCODE_u, false);
++		}
++		return true;
++	case kMRope:
++		if (onManny(this, cursor))
++			pressKey(Common::KEYCODE_i, 'i', "rope: on Manny, I");
++		else
++			pressKey(Common::KEYCODE_u, 'u', "rope: U (throw)");
++		return true;
++	case kMMeadow: {
++		int hit = outlineObjectAt(cursor, setup);
++		if (hit > 0 && hit == (int)luaNumber("mf.wound.hotspot_id"))
++			pressKey(Common::KEYCODE_u, 'u', "meadow: the wound, U");
++		else if (onManny(this, cursor))
++			pressKey(Common::KEYCODE_i, 'i', "meadow: on Manny, I");
++		else
++			pressKey(Common::KEYCODE_UP, 0, "meadow: Up (flail)");
++		return true;
++	}
++	case kMAnyKey:
++		pressKey(Common::KEYCODE_u, 'u', "one key: U");
++		return true;
++	case kMHandOver:
++		if (onActor(luaActor("glottis"), cursor))
++			pressKey(Common::KEYCODE_RIGHT, 0, "hand-over: on Glottis, Right");
++		return true;
++	case kMElevator: {
++		// the floors (Grim Mouse's layout of the list: four rows from y 366, 22
++		// apart), and its arrows above and below them
++		int top = (int)luaNumber("br2.top_line"), n = (int)luaNumber("br2.num_choices");
++		int goal = -1, then = Common::KEYCODE_RETURN;
++		if (region == "dxup")
++			goal = MAX(1, (int)luaNumber("br2.current_line") - 1), then = 0;
++		else if (region == "dxdown")
++			goal = MIN(n, (int)luaNumber("br2.current_line") + 1), then = 0;
++		else if (cursor.y >= 366 && cursor.y < 366 + 4 * 22 && cursor.x < 420) {
++			int row = (cursor.y - 366) / 22;
++			goal = top + row;
++			if (row == 3 && goal < n)
++				then = 0;   // "...": more follow, so this scrolls on to it
++			if (goal > n)
++				return true;
++		}
++		if (goal < 1)
++			return true;
++		momentStop("re-targeted");
++		_momKind = kind;
++		_momGoal = goal;
++		_momThen = then;
++		_momStart = g_system->getMillis();
++		_momLastPress = 0;
++		debug(1, "Grim Mouse: elevator: floor line %d of %d (top %d)%s", goal, n, top, then ? ", then Enter" : "");
++		queueUpdate();
++		return true;
++	}
++	default:
++		return true;
++	}
++}
++
++void HotspotMan::momentUpdate() {
++	uint32 now = g_system->getMillis();
++	// a press held back on the extinguisher: held long enough, it's a spray (U held)
++	if (_fingerPending && now - _fingerTime >= kFingerTap) {
++		_fingerPending = false;
++		if (momentKind() == kMExtinguisher && _cutScene == 0) {
++			_fingerKey = Common::KEYCODE_u;
++			_fingerDown = true;
++			_fingerRelease = false;
++			_fingerTime = now;
++			g_grim->holdGameKey(_fingerKey, true);
++			debug(1, "Grim Mouse: extinguisher: U held");
++		}
++	}
++	if (_fingerDown) {
++		// let go: no sooner than the game can see it (its scripts read the key a
++		// frame later), and for the extinguisher not before its own handler is
++		// in, which is the one that hears U go up
++		bool ready = now - _fingerTime >= kFingerMinHold;
++		if (ready && _fingerKey == Common::KEYCODE_u && momentKind() != kMSpraying && now - _fingerTime < 3000)
++			ready = false;
++		if (_fingerRelease && ready) {
++			g_grim->holdGameKey(_fingerKey, false);
++			_fingerDown = _fingerRelease = false;
++			debug(1, "Grim Mouse: finger lifted: key %d up", _fingerKey);
++		}
++	}
++	if (_momKind == kMNone)
++		return;
++	if (momentKind() != _momKind)
++		return momentStop("the game took the controls back");
++	if (g_grim->getMode() != GrimEngine::NormalMode)
++		return momentStop("not in play");
++	if (_momKind == kMComputer || _momKind == kMPrinter || _momKind == kMElevator)
++		return queueUpdate();
++	if (_cutScene > 0)
++		return momentStop("cut scene");
++	if (_momKind == kMAxe)
++		return axeUpdate();
++	lineUpdate();
++}
++
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..f78fc45 100644
+index 9d342ba..430822a 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -1500,7 +2071,7 @@ index 9d342ba..f78fc45 100644
  };
  
  struct MouseHotspot {
-@@ -112,6 +125,18 @@ public:
+@@ -112,6 +125,30 @@ public:
  	const Common::String &getOptionMode() const { return _curOption; }
  	Common::Point mannyPos2D(float zOffset);
  
@@ -1516,10 +2087,22 @@ index 9d342ba..f78fc45 100644
 +	bool driveEvent(const Common::Event &ev, const Common::Point &cursor);
 +	void driveUpdate();
 +
++	/**
++	 * PointyClicky Edition, the other moments the game takes the controls
++	 * (docs/moments.md, lines 6-24): while one of the game's own handlers is
++	 * installed (the wheelbarrow, the crawls, the climbs, the machines, the
++	 * one-key scenes, the hand-over, the elevator's floors), a tap is turned
++	 * into the 1998 keys for it: pressed, held until Manny gets where the tap
++	 * was, or held for as long as the finger is (the extinguisher). Button-up
++	 * events come here too.
++	 */
++	bool momentEvent(const Common::Event &ev, const Common::Point &cursor);
++	void momentUpdate();
++
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
  
-@@ -127,10 +152,42 @@ protected:
+@@ -127,10 +164,72 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
@@ -1558,6 +2141,36 @@ index 9d342ba..f78fc45 100644
 +	float _driveCheckYaw;
 +	bool _driveHeld[kDriveKeys];
 +	int _cranePoint, _craneLast;   // the crane: the track point it's going to, the last it passed
++
++	// the moments (momentEvent)
++	enum { kMNone, kMWheelbarrow, kMCrawl, kMChain, kMComputer, kMRoulette, kMPrinter, kMVault, kMAxe,
++	       kMExtinguisher, kMSpraying, kMRope, kMMeadow, kMAnyKey, kMHandOver, kMElevator, kMLadder };
++	int momentKind();
++	void momentHold(Common::KeyCode code, bool down);
++	void momentStop(const char *why);
++	bool momentLine(int kind, const Common::Point &cursor);
++	void lineUpdate();
++	void axeUpdate();
++	void queueUpdate();
++	int _momKind;                 // the moment a held key or a queue belongs to (kMNone: nothing going on)
++	Common::KeyCode _momHeld[4];  // keys the moment holds down now
++	int _momNumHeld;
++	uint32 _momStart, _momCheckTime, _momLastPress;
++	// along a line (the wheelbarrow, the crawls, the climbs): Manny's place along
++	// _momAxis (from _momOrigin) is taken to _momTarget by holding _momFwd or _momBack
++	Math::Vector3d _momAxis, _momOrigin;
++	float _momTarget, _momCheckS, _momArrive;
++	Common::KeyCode _momFwd, _momBack;
++	// the broadaxe: back to this point
++	Math::Vector3d _momPoint;
++	// a queue (the computer, the printer, the elevator): the goal, then what to do there
++	int _momGoal, _momThen;
++	// a key held for as long as the finger is (the extinguisher, the vault's wheel)
++	Common::KeyCode _fingerKey;
++	bool _fingerDown, _fingerRelease;
++	uint32 _fingerTime;
++	Common::Event _fingerEvent;   // a press held back to see whether it's a tap (the extinguisher)
++	bool _fingerPending, _replaying;
 +
  	int _cutScene;
  

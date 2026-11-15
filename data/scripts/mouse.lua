@@ -30,6 +30,11 @@ system.mouseUseInHand = function(arg1, arg2) -- line 20
     end
 end
 system.dialogSelect = function(arg1, arg2) -- line 25
+    -- (PointyClicky Edition: Copal's computer and the elevator's floors are
+    -- worked by their own keys, which the engine sends: docs/moments.md 11, 23)
+    if co and system.buttonHandler == co.computer or br2 and system.buttonHandler == br2 then
+        return
+    end
     if system.lastDialog then
         system.lastDialog:mouseSelect(arg1, arg2)
     end
@@ -51,26 +56,6 @@ end
 system.mouseNowalk = function(arg1) -- line 44
     if system.currentSet and system.currentSet.nowalk then
         system.currentSet:nowalk(arg1)
-    end
-end
-system.climbTowards = function(arg1, arg2) -- line 49
-    if arg2 > 0 then
-        stop_script(climb_actor_down_to)
-        single_start_script(climb_actor_up_to, system.currentActor, arg1)
-    else
-        stop_script(climb_actor_up_to)
-        single_start_script(climb_actor_down_to, system.currentActor, arg1)
-    end
-end
-system.linearMove = function(arg1, arg2, arg3) -- line 58
-    if system.currentSet then
-        if arg2 > 0 then
-            stop_script(system.currentSet.linearMoveMinus)
-            single_start_script(system.currentSet.linearMovePlus, system.currentSet, arg1, arg3)
-        else
-            stop_script(system.currentSet.linearMovePlus)
-            single_start_script(system.currentSet.linearMoveMinus, system.currentSet, arg1, arg3)
-        end
     end
 end
 -- PointyClicky Edition (15 Nov 2026): characters' live outlines. An object
@@ -117,6 +102,11 @@ pc_link_vehicles = function(arg1)
     -- picks the keyboard's hot object, not what a pointer may touch)
     if type(arg1.forklift) == "table" and arg1.forklift.hotspot_id and de.forklift_actor.hActor then
         LinkHotspotActor(arg1.forklift.hotspot_id, de.forklift_actor.hActor, TRUE)
+    end
+    -- the wheelbarrow is the game's tr.wheelbarrow, drawn by its tr.barrow actor
+    -- (pushed about by the wheelbarrow's own keys, docs/moments.md line 6)
+    if arg1 == tr and type(tr.barrow) == "table" and tr.barrow.hActor and tr.wheelbarrow.hotspot_id then
+        LinkHotspotActor(tr.wheelbarrow.hotspot_id, tr.barrow.hActor, TRUE)
     end
 end
 Set.update_hotspots = function(arg1) -- line 69
@@ -532,28 +522,6 @@ Dialog.mouseSelect = function(arg1, arg2, arg3) -- line 465
         start_script(arg1.execute_line, arg1, arg1.selected_line)
     end
 end
-climb_actor_down_to = function(arg1, arg2) -- line 472
-    local local1
-    while arg1:getpos().z > arg2 and cutSceneLevel <= 0 do
-        if not find_script(arg1.climb_down) then
-            local1 = start_script(arg1.climb_down, arg1)
-            wait_for_script(local1)
-        else
-            break_here()
-        end
-    end
-end
-climb_actor_up_to = function(arg1, arg2) -- line 483
-    local local1
-    while arg1:getpos().z < arg2 and cutSceneLevel <= 0 do
-        if not find_script(arg1.climb_up) then
-            local1 = start_script(arg1.climb_up, arg1)
-            wait_for_script(local1)
-        else
-            break_here()
-        end
-    end
-end
 curbman = function() -- line 494
 end
 input_boot_parameter = function() -- line 496
@@ -665,26 +633,6 @@ trim_header = function(arg1) -- line 587
     end
     return arg1, local2
 end
-ac.linearMovePlus = function(arg1, arg2, arg3) -- line 605
-    stop_script(ac.crawl_forward)
-    while manny:getpos().x < arg2 and cutSceneLevel <= 0 do
-        if find_script(ac.crawl_backward) == nil then
-            start_script(ac.crawl_backward)
-        else
-            break_here()
-        end
-    end
-end
-ac.linearMoveMinus = function(arg1, arg2, arg3) -- line 615
-    stop_script(ac.crawl_backward)
-    while manny:getpos().x > arg2 and cutSceneLevel <= 0 do
-        if find_script(ac.crawl_forward) == nil then
-            start_script(ac.crawl_forward)
-        else
-            break_here()
-        end
-    end
-end
 if not al.dummy_door then
     al.dummy_door = Object:create(al, "/altxa00/dummydoor", 0, 100, 0, { range = 0.100000001 })
     al.dummy_door:make_untouchable()
@@ -692,77 +640,14 @@ end
 pc_rename(al.ga_door_obj, "/altxa01/big door")
 at.ledge.use_immediate = TRUE
 bd.extinguisher.use_immediate = TRUE
-start_ext = function() -- line 671
-    inventory_disabled = TRUE
-    START_CUT_SCENE()
-    manny:set_run(FALSE)
-    inventory_save_handler = system.buttonHandler
-    system.buttonHandler = fireExtinguisherHandler
-    manny:stop_chore(manny.hold_chore, "ma.cos")
-    manny:stop_chore(ma_hold, "ma.cos")
-    manny:push_costume("ma_use_extin.cos")
-    manny:play_chore(1, "ma_use_extin.cos")
-    manny:wait_for_chore(1, "ma_use_extin.cos")
-    END_CUT_SCENE()
-    local1 = bd.extinguisher.fire_extinguisher()
-    if local1 then
-        bd.beavers.sprayed = bd.beavers.sprayed + 1
-        if bd.beavers.sprayed == 1 then
-            manny:say_line("/bdma021/")
-        elseif bd.beavers.sprayed == 2 then
-            manny:say_line("/bdma022/")
-        elseif bd.beavers.sprayed == 3 then
-            manny:say_line("/bdma023/")
-        elseif bd.beavers.sprayed == 4 then
-            manny:say_line("/bdma024/")
-        elseif bd.beavers.sprayed == 5 then
-            manny:say_line("/bdma025/")
-        elseif bd.beavers.sprayed == 6 then
-            manny:say_line("/bdma026/")
-        else
-            manny:say_line("/bdma027/")
-        end
-    end
-    manny:pop_costume()
-    manny:play_chore_looping(manny.hold_chore, "ma.cos")
-    manny:play_chore_looping(ma_hold, "ma.cos")
-    inventory_disabled = FALSE
-end
-bd.extinguisher.use = function(arg1) -- line 707
-    local local1
-    local local2
-    local local3
-    if system.currentSet == bd then
-        if bd.firing_extinguisher then
-            bd.firing_extinguisher = FALSE
-        else
-            bd.firing_extinguisher = TRUE
-            if not find_script(start_ext) then
-                start_script(start_ext)
-            end
-        end
-    else
-        bd.extinguisher:default_response()
-    end
-end
+-- (PointyClicky Edition, docs/moments.md line 16: the extinguisher is the game's
+-- own bd.extinguisher.use again, held U to spray, let go to stop; the engine holds
+-- U for as long as the finger is down. Grim Mouse's tap-to-toggle is retired.)
 pc_rename(bv.bone_wagon, "/bvtxa00/bonewagon")
 pc_rename(bv.padlock, "/bvtx043/padlock")
 pc_rename(bv.padlock_obj, "/bvtxa01/padlock")
 pc_rename(bv.gate, "/bvtx053/gate")
 pc_rename(bv.bd_door, "/bvtxa02/door")
-cf.mouseSpecial = function(arg1, arg2, arg3) -- line 729
-    if arg3 > 0 and cutSceneLevel <= 0 then
-        if arg2 == "sxcancel" then
-            single_start_script(cf.close_panel)
-        elseif arg2 == "sxmagnet" then
-            if arg3 == 2 then
-                single_start_script(cf.panel.lookAt, cf.panel)
-            else
-                single_start_script(cf.toggle_magnet)
-            end
-        end
-    end
-end
 pc_rename(cf.panel, "/cftxa00/panel")
 pc_rename(cf.panelcu, "/cftxa01/panel")
 pc_rename(cf.drawer, "/cftxa02/drawer")
@@ -841,15 +726,6 @@ pc_rename(il.corpse3, "/iltxa02/bodies")
 pc_rename(il.corpse4, "/iltxa03/bodies")
 pc_rename(il.ladder, "/iltxa05/ladder")
 pc_rename(il.lz_door, "/iltxa04/hatch")
-ly.mouseSpecial = function(arg1, arg2, arg3) -- line 932
-    if arg3 > 0 then
-        if arg2 == "dxup" then
-            br2:go_up()
-        elseif arg2 == "dxdown" then
-            br2:go_down()
-        end
-    end
-end
 pc_rename(lz.port_pipe, "/lztxa00/vent")
 pc_rename(lz.starboard_pipe1, "/lztxa01/vent")
 pc_rename(lz.starboard_pipe2, "/lztxa02/vent")
@@ -875,9 +751,6 @@ me.salvador2.use = function(arg1) -- line 959
 end
 me.salvador_obj.use_immediate = TRUE
 me.ticket.inv_name = "tix"
-mf.nowalk = function(arg1, arg2) -- line 964
-    single_start_script(mf.flail_around)
-end
 mf.wound.use_immediate = TRUE
 -- (Grim Mouse makes the wound touchable for good; mf.lua never takes it back,
 -- so doing it again after a load changes nothing)
@@ -889,11 +762,6 @@ nq.inv_name = "lsa_photo"
 pc_rename(op.anchor, "/optxa00/anchor")
 pc_rename(op.ei_door, "/optxa01/door")
 
-pf.mouseSpecial = function(arg1, arg2, arg3) -- line 990
-    if arg3 > 0 then
-        start_script(pf.return_to_set, pf)
-    end
-end
 ri.photo.inv_name = "celso_photo"
 pc_rename(sh.glottis_obj, "/shtxa01/glottis")
 pc_rename(sh.flower_trail_obj, "/shtxa02/master flower trail")
@@ -943,76 +811,6 @@ su.stop_chepito = function(arg1) -- line 1037
     end
 end
 tg.note.inv_name = "gk_note"
-tp.mouseSpecial = function(arg1, arg2, arg3) -- line 1060
-    if cutSceneLevel <= 0 and arg3 > 0 then
-        if arg2 == "sxldn" or arg2 == "sxlup" then
-            tp.current_button = tp.WEEK
-            mannys_hands:moveto(-0.00100000005, 0.00200000009, 0)
-        elseif arg2 == "sxmdn" or arg2 == "sxmup" then
-            tp.current_button = tp.DAY
-            mannys_hands:moveto(-0.0149999997, 0.00200000009, 0)
-        elseif arg2 == "sxrdn" or arg2 == "sxrup" then
-            tp.current_button = tp.RACE
-            mannys_hands:moveto(-0.0289999992, 0.00200000009, 0)
-        elseif arg2 == "sxprint" then
-            tp.current_button = tp.PRINT
-            mannys_hands:moveto(-0.0149999997, -0.0199999996, 0)
-        elseif arg2 == "sxcancel" then
-            single_start_script(tp.close_printer)
-        end
-        if arg2 == "sxlup" or arg2 == "sxmup" or arg2 == "sxrup" then
-            single_start_script(tp.push_up)
-        elseif arg2 == "sxldn" or arg2 == "sxmdn" or arg2 == "sxrdn" or arg2 == "sxprint" then
-            single_start_script(tp.push_down)
-        end
-    end
-end
-tr.mouseSpecial = function(arg1, arg2, arg3) -- line 1084
-    if arg2 == "sxcancel" and arg3 > 0 then
-        start_script(tr.drop_wheelbarrow)
-    end
-end
-tr.linearMovePlus = function(arg1, arg2, arg3) -- line 1089
-    stop_script(tr.pull_barrow)
-    while manny:getpos().x < arg2 and cutSceneLevel <= 0 and not manny:find_sector_name("wb_push_lim") do
-        if find_script(tr.push_barrow) == nil then
-            start_script(tr.push_barrow)
-        else
-            break_here()
-        end
-    end
-end
-tr.linearMoveMinus = function(arg1, arg2, arg3) -- line 1099
-    stop_script(tr.push_barrow)
-    while manny:getpos().x > arg2 and cutSceneLevel <= 0 and not manny:find_sector_name("wb_pull_lim") do
-        if find_script(tr.pull_barrow) == nil then
-            start_script(tr.pull_barrow)
-        else
-            break_here()
-        end
-    end
-    tr.linearMovePlus(arg1, arg2, arg3)
-end
-move_right = function() -- line 1110
-    if manny:find_sector_name("wb_push_lim") then
-        start_script(tr.wheelbarrow.out_of_bounds, tr.wheelbarrow)
-    else
-        stop_script(tr.pull_barrow)
-        if find_script(tr.push_barrow) == nil then
-            start_script(tr.push_barrow)
-        end
-    end
-end
-move_left = function() -- line 1120
-    if manny:find_sector_name("wb_pull_lim") then
-        start_script(tr.wheelbarrow.out_of_bounds, tr.wheelbarrow)
-    else
-        stop_script(tr.push_barrow)
-        if find_script(tr.pull_barrow) == nil then
-            start_script(tr.pull_barrow)
-        end
-    end
-end
 ts.tx_door.walkOut = function(arg1) -- line 1130
     tx:come_out_door(tx.ts_door)
 end
@@ -1031,17 +829,6 @@ tu.red_tube_os.lookAt = function(arg1) -- line 1141
 end
 tu.red_tube_os.use = function(arg1) -- line 1144
     system.default_response("reach")
-end
-vd.mouseSpecial = function(arg1, arg2, arg3) -- line 1147
-    if cutSceneLevel <= 0 then
-        if arg2 == "sxleft" then
-            single_start_script(vd.turn_clockwise)
-        elseif arg2 == "sxright" then
-            single_start_script(vd.turn_counterclockwise)
-        elseif arg2 == "sxcancel" then
-            single_start_script(vd.back_off, vd)
-        end
-    end
 end
 pc_rename(vi.broadaxe, "/vitxa04/axe")
 if not vo.dummy_axe then
