@@ -1,9 +1,9 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
-*Started 15 Nov 2026. In progress: Year 1, from a new game through El Marrow
-and the Petrified Forest: the tree pump done, the sign planted, the key from the
-cave (lb). Not yet at the credits. Resume from save 102
-(build/bench/saves/grim102.gsv; see "Resume here" at the end).*
+*Started 15 Nov 2026. In progress: Year 1, from a new game through El Marrow,
+the Petrified Forest and the beavers, to Rubacava's docks. Not yet at the
+credits. Resume from save 115 (build/bench/saves/grim115.gsv; see "Resume here"
+at the end).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -137,6 +137,36 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     and did nothing. Redrawn round the post (x 402-436, y 336-388); in hand.txt.
     Shots 372 (the walk), 373-374 (taken up).
 
+17. **Engine and mouse.lua: a held item used on its own** (question 1, decided
+    by Simon 15 Nov 2026). With an item in hand a tap on Manny put it away, and
+    using it on its own needed Grim Mouse's hidden two-finger tap on the floor.
+    Now a tap on Manny with an item in hand is the 1998 U with nothing targeted
+    (`system.mouseUseHeld`: `Sentence("use", item)`, the last USE branch of
+    _controls.lua; the engine's tap-on-Manny calls it instead of sending P);
+    putting it away is the game's P, which the app is to send for a swipe up
+    (on the bench a P key stands in for the swipe); the two-finger floor use is
+    gone from `just_walk`, so two fingers on the floor only walk. Re-proven:
+    save 77 (gs, the mouthpiece bonded, in hand): a tap on Manny, "Wow, that
+    made a perfect impression of my teeth" (q1-d to q1-f); P puts it away and
+    the next tap on Manny opens the coat (q1-g to q1-i); with the eggs in hand
+    two fingers on the floor walk and use nothing, a floor tap walks (q1-j to
+    q1-n); save 78 (already molded): "Yep. A perfect fit." (q1-a to q1-c).
+    Save 100 (na): the sign picked up by a tap, planted off the spot by a tap
+    on Manny (q1-p, q1-q), picked up, walked to the spot, planted by a tap on
+    Manny: it spins, the trapdoor, "¡Lotería!" (q1-u to q1-y).
+
+18. **na, setup 1 (na_intha), the sign post in the clearing (natx002).** Its
+    outline was a strip right across the screen (x 0-639, y 255-343, the band
+    the sign can be planted in), so with the sign planted, a tap on the empty
+    floor anywhere in that band lit the cursor and took the sign up from across
+    the clearing (save 99: a tap at 560,270, shots 418-420). The sign is the
+    game's own `signpost` actor, moved wherever Manny plants it, so mouse.lua
+    now links na.signpost to it (`LinkHotspotActor`, as the characters and
+    vehicles are): it's found where it stands (law 3), the outline only when
+    it isn't drawn. Proven from save 99: the same tap walks, the cursor stays
+    bone (421-422); a tap on the sign as drawn takes it ("tap on sign post (as
+    drawn)", 425-426).
+
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
 Now **data/hotspots/hand.txt** lists every outline fixed by hand (set, setup,
@@ -196,7 +226,9 @@ lines. Every new hand fix needs its line there.)
 
 ## Questions for Simon
 
-1. **Using a held item on Manny himself** (the mouthpiece, for the dental
+1. **Answered (Simon, 15 Nov 2026): a tap on Manny uses the held item on its
+   own; a swipe up puts it away (fix 17).** The question was:
+   **Using a held item on Manny himself** (the mouthpiece, for the dental
    impression: in 1998, U with nothing in front of him). A tap on the floor
    walks; a tap on Manny puts the item away. What worked is Grim Mouse's
    binding: **a two-finger tap on the floor with the item in hand walks there
@@ -347,29 +379,62 @@ lines. Every new hand fix needs its line there.)
   down to **lb**, the cave (398). A tap on the cave's sign: Manny reads the
   verse and takes the key (399-402). Save 102.
 
-## Resume here (after the third session, 15 Nov 2026)
+- **lb, na, sg (fourth session, 15 Nov 2026).** From save 102. The cave's way
+  out: the first tap stops Manny at the game's own shortcut over the rocks
+  (`lb_cheat1`/`lb_cheat2`, a walkOut that sets him at the far side, which ends
+  the walk); a second tap on the way out carries on (411-412). Not a fault: the
+  1998 keys stop there too. In na the sign's outline took floor taps (fix 18).
+  Out by 'back' to sg (427). The Bone Wagon: a tap on it with the key still in
+  hand (from the cave) is "use the Bone Wagon with the key", which does
+  nothing; with the key put away (P, the coming swipe up), a tap gets Manny in
+  (443). A tap on the bumpy road: over the rocks into **bv** (444-445).
+  Save 107.
+- **bv, bd: Busy Beavers.** A tap on the gate: "the way out of the forest", the
+  flaming beaver chases Manny out (449-454). Save 108. Through the gate into
+  **bd**; a tap on the dam (its outline, inside the bone heap's edge) takes a
+  bone each time, P between (456-458). Save 109. The path down to the left: the
+  tar angle (bd_rckws). **The beavers (moment 16):** a tap on the tar with a
+  bone in hand: Manny throws it; when the pointer comes back, a tap on Manny
+  (the coat), the left third until the extinguisher shows, the middle (take
+  it), then **press and hold over the tar**: Manny sprays, and the beaver diving
+  for the bone (about 10 s after the throw) freezes into the tar (497, 500,
+  506). Three times (saves 112, 113, 114: all three dead, read in an observer
+  run). The coat path is tight but plays: a player who misses throws another
+  bone (the dam has plenty), as the walkthrough says. Bench helper:
+  tools/proof/beaver.py (pointer steps only; it reads the screen for the
+  pointer's return and the extinguisher's red, as the player looks).
+  Two slips of mine, not faults: a P lost while a bone was held made the next
+  dam tap "use bone on dam" (it goes back on the pile); and the coat reveal
+  ignores a tap in its first second or two.
+- **bv, the gate.** The padlock (the gate's left post): a tap, the key opens it;
+  the Bone Wagon drives over the dam, out of the forest (512-515). The cut
+  scenes to Rubacava's docks: Glottis's drag race, Meche (516-519). Manny at
+  the foot of the lighthouse stairs (520-523). **Save 115.**
+- Question 1's gesture (fix 17) wasn't needed in this stretch; the old two-finger
+  binding is gone. Put away (P = the app's swipe up) was used before each dam
+  tap, before the wagon, and before each throw.
 
-- **Save 102** (build/bench/saves/grim102.gsv): lb, the cave under the
-  clearing, Manny by the sign with the key in the coat.
-- Start: `tools/proof/cycle.sh 102 nosave` (now builds the lab through the patch
-  check, from the daemon's game folder). Steps: `tools/proof/g.py '<json>'`.
-- Next (the walkthrough, "Busy Beavers"): back to the Bone Wagon, over the
-  rocks to the northeast (the pogo sticks), the door: chased out; back through
-  the gate, three bones at the edge of the bone dam (near the green bit); face
-  the tar, throw a bone; the extinguisher out of the coat and held (moment 16)
-  when a beaver jumps in; three times; the key on the gate's lock. Then Rubacava.
-- Question 1's binding (two fingers on the floor with an item in hand) needed
-  so far: the mouthpiece in gs (306), the sign in na (378, 393). Note each new one.
-- Reading state: observer runs (`observe.py <name> <lua> build/proof-bench/q.json
-  --load N`, after saving the proof game and quitting the daemon) give the truth
-  in a few seconds; aim on screen with the angle the engine logs Manny on, not
-  the first of a set's setups. build/proof-bench/aim.py projects tr setup 2.
+## Resume here (after the fourth session, 15 Nov 2026)
+
+- **Save 115** (build/bench/saves/grim115.gsv): Rubacava, the docks, Manny at
+  the foot of the lighthouse stairs (re), Year 1's forest done.
+- Start: `tools/proof/cycle.sh 115 nosave`. Steps: `tools/proof/g.py '<json>'`.
+- **Held items (fix 17):** a tap on Manny with an item in hand uses it on its
+  own; to put it away the app will send P for a swipe up. On the bench there's
+  no swipe: `{"key":"p"}` stands in for it (log it as the swipe).
+- Next (the walkthrough, "Welcome to Rubacava"): into the diner, Celso ("What
+  are you doing here?", "You must love her very much, Celso", "How do you know
+  your wife hasn't gone ahead of you?", "I'll help you find your wife...", "Well,
+  I'd better go see how my other clients are doing..."): the photo; down the
+  stairs, left into the fog... then on through Year 1's Rubacava to Year 2.
 - Known ahead: the lighthouse top (no tap moves Manny), the conveyor belt's
   invented `cy.offbelt` (retire it for the game's jump box).
+- Reading state: observer runs (`tools/proof/qq.sh <slot> <lua>`: saves, runs
+  the Lua in a developer-mode copy, restarts the proof bench at the slot).
 - The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
   in ~/Developer/pointyclicky-build; the FreeType lines are in both config.mk
   (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib -lfreetype -lz
-  -lbz2`); a reconfigure loses them. The grim room adapter (pt_room.cpp) is in.
-- engine/grim_edition.patch is now cut against ScummVM 2026.4.0 +
+  -lbz2`); a reconfigure loses them.
+- engine/grim_edition.patch is cut against ScummVM 2026.4.0 +
   grim_pointyclicky.patch alone (the room adapter's grim.cpp/grim.h/module.mk
-  changes left out); before, it carried the adapter's line offsets.
+  changes left out).

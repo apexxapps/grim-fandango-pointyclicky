@@ -80,7 +80,19 @@ it, and every exit. That's the one picture where a gap can't hide.
      that item, as the original's U does.
    - Two-finger tap = Examine (`lookAt`).
    - **Manny is the coat:** tap Manny to open his inventory, as reaching for
-     I did. With an item in hand, tap Manny to put it back (the original's P).
+     I did.
+   - **An item used on its own (Simon, 15 Nov 2026).** With an item in hand,
+     **tap Manny** = the 1998 U with nothing targeted: the item's own `use`
+     (`Sentence("use", item)`, _controls.lua's last USE branch), so the game
+     decides what that is: Manny bites the mouthpiece, plants the sign, says
+     it's no use. (A literal U would use the item on whatever his head is
+     turned to; tapping Manny means "on its own", so the engine takes that
+     branch.) **Putting it away** is the game's P, sent by the app for a
+     **swipe up anywhere** while holding, the same gesture that puts things
+     back in the coat. Two-finger tap stays look (E) everywhere, and a tap on
+     the floor stays walk while holding. Grim Mouse's hidden binding (a
+     two-finger tap on the floor with an item in hand walked there and used
+     it) is retired. Proven on the bench (docs/proof.md, fix 17).
    - **No verb menu** (Simon, 14 Nov 2026, over the Remaster's "verb skull",
      a Look/Use/Pick up pop-up on every click): one tap, one meaning, no
      menu over the scene, ever.
@@ -198,10 +210,10 @@ point where you want to go or what you want to work, and click.
    and clicking (no keys). It needs a Grim state reader, which also gives
    Grim a walkthrough and NudgeAI hints.
    **In progress (docs/proof.md):** played by pointer from a new game, Year 1
-   through El Marrow and the Petrified Forest: the tree pump, the sign and the
-   key from the cave so far (15 Nov 2026); sixteen fixes on the way (two dead
-   ends: Copal's computer kept the pointer after it closed; the wheelbarrow's
-   pull never ended), one question for Simon.
+   through El Marrow, the Petrified Forest and the beavers to Rubacava's docks
+   (15 Nov 2026); eighteen fixes on the way (two dead ends: Copal's computer
+   kept the pointer after it closed; the wheelbarrow's pull never ended), and
+   the held-item gesture decided (a tap on Manny uses it on its own).
 3. **Coverage**: during that run, every object the game ever made touchable
    was reachable by the pointer at least once.
 4. **Known faults**: Grim Mouse's crash at Domino's computer (#48), its

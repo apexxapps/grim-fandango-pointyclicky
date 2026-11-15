@@ -29,6 +29,22 @@ system.mouseUseInHand = function(arg1, arg2) -- line 20
         system.currentSet:mouseWalk(arg1, arg2, 0, nil)
     end
 end
+-- PointyClicky Edition (Simon, 15 Nov 2026): with something in hand, a tap on
+-- Manny is the 1998 U with nothing hot (_controls.lua's last USE branch): the
+-- held thing used on its own (Manny bites the mouthpiece, plants the sign).
+-- Putting it away is the game's own P (the app's swipe up). This replaces Grim
+-- Mouse's hidden binding, a two-finger tap on the floor (just_walk, below).
+system.mouseUseHeld = function() -- PointyClicky Edition
+    if cutSceneLevel > 0 or not system.currentActor or not system.currentActor.is_holding then
+        return
+    end
+    system.currentActor.stop_idle = TRUE
+    kill_soft_scripts()
+    stop_script(walk_and_do)
+    stop_script(just_walk)
+    stop_script(Sentence)
+    start_script(Sentence, "use", system.currentActor.is_holding)
+end
 system.dialogSelect = function(arg1, arg2) -- line 25
     -- (PointyClicky Edition: Copal's computer and the elevator's floors are
     -- worked by their own keys, which the engine sends: docs/moments.md 11, 23)
@@ -103,6 +119,12 @@ pc_link_vehicles = function(arg1)
     if type(arg1.forklift) == "table" and arg1.forklift.hotspot_id and de.forklift_actor.hActor then
         LinkHotspotActor(arg1.forklift.hotspot_id, de.forklift_actor.hActor, TRUE)
     end
+    -- the sign post in the clearing is the game's signpost actor, standing
+    -- wherever Manny planted it (its outline was a strip right across the screen,
+    -- so a tap on the floor anywhere in that band went to the sign: proof F18)
+    if arg1 == na and type(na.signpost) == "table" and na.signpost.hotspot_id and type(signpost) == "table" and signpost.hActor then
+        LinkHotspotActor(na.signpost.hotspot_id, signpost.hActor)
+    end
     -- the wheelbarrow is the game's tr.wheelbarrow, drawn by its tr.barrow actor
     -- (pushed about by the wheelbarrow's own keys, docs/moments.md line 6)
     if arg1 == tr and type(tr.barrow) == "table" and tr.barrow.hActor and tr.wheelbarrow.hotspot_id then
@@ -166,9 +188,9 @@ just_walk = function(arg1, arg2, arg3) -- line 117
         return
     end
     local local1 = 0
-    if arg1 == 2 and system.currentActor.is_holding and system.currentActor.is_holding.use_immediate then
-        local1 = arg2
-    end
+    -- (PointyClicky Edition, 15 Nov 2026: Grim Mouse's two-finger tap on the
+    -- floor with something in hand, which walked there and used it, is retired;
+    -- a tap on Manny does that now: system.mouseUseHeld. Two fingers only look.)
     while local1 < arg2 do
         local local2 = arg3[local1 * 3]
         local local3 = arg3[local1 * 3 + 1]
@@ -183,8 +205,6 @@ just_walk = function(arg1, arg2, arg3) -- line 117
     end
     if system.currentActor.driveto then
         WalkActorForward(system.currentActor.hActor)
-    elseif arg1 == 2 and system.currentActor.is_holding then
-        start_script(Sentence, "use", system.currentActor.is_holding, nil, TRUE)
     end
 end
 Set.mouseWalk = function(arg1, arg2, arg3, arg4, arg5) -- line 143

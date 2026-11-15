@@ -405,7 +405,7 @@ index c86b5c3..3e7b31a 100644
  		va_start(args, s);
  		Common::String buf = Common::String::vformat(s, args);
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
-index f2fabc5..39c5e34 100644
+index 7df0c64..f1d3539 100644
 --- a/engines/grim/grim.cpp
 +++ b/engines/grim/grim.cpp
 @@ -828,8 +828,11 @@ void GrimEngine::luaUpdate() {
@@ -421,7 +421,7 @@ index f2fabc5..39c5e34 100644
  
  	LuaBase::instance()->update(_frameTime, _movieTime);
  
-@@ -997,9 +1000,22 @@ void GrimEngine::drawCursor() {
+@@ -997,9 +1000,23 @@ void GrimEngine::drawCursor() {
  	_cursor->draw();
  }
  
@@ -442,11 +442,12 @@ index f2fabc5..39c5e34 100644
 -// click on Manny himself, for hosts with two buttons): the inventory.
 +// Left: walk / use (twice within 500 ms: run), right: look, middle (or a tap
 +// on Manny himself, for hosts with two buttons): the inventory; with something
-+// in hand, a tap on Manny puts it away (PointyClicky Edition).
++// in hand, a tap on Manny uses it on its own (PointyClicky Edition; putting it
++// away is the game's own P, which the app sends for a swipe up).
  bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	if (!_hotspotManager || _mode == SmushMode)
  		return false;
-@@ -1009,11 +1025,21 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1009,11 +1026,21 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  		_hotspotManager->hover(_cursor->getPosition());
  		return true;
  	}
@@ -468,14 +469,16 @@ index f2fabc5..39c5e34 100644
  	bool doubleClick = false;
  	if (type == Common::EVENT_LBUTTONDOWN) {
  		uint32 now = g_system->getMillis();
-@@ -1022,19 +1048,34 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1022,19 +1049,36 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	}
  	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
  	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
 -	if (type == Common::EVENT_RBUTTONDOWN && _hotspotManager->getCtrlMode() == HotspotMan::Normal &&
-+	bool putAway = false;
++	bool useHeld = false;
 +	// PointyClicky Edition (Simon, 14 Nov 2026): a tap on Manny is his coat, as I
-+	// was; with something in hand, it goes back in the coat, as P did.
++	// was. With something in hand (Simon, 15 Nov 2026) it's U with nothing
++	// targeted: the held thing used on its own (the game decides: Manny bites the
++	// mouthpiece, plants the sign). Putting it away is the game's P (a swipe up).
 +	if (type == Common::EVENT_LBUTTONDOWN && _hotspotManager->getCtrlMode() == HotspotMan::Normal &&
  	    !_hotspotManager->isDialog()) {
  		// On Manny (he stands in front of whatever is behind him): from his
@@ -490,25 +493,25 @@ index f2fabc5..39c5e34 100644
 -			debug(1, "Grim Mouse: right click %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y, inventory ? ": inventory" : "");
 +			bool onManny = _hotspotManager->tapOnManny(p);
 +			if (onManny) {
-+				putAway = LuaBase::instance()->queryVariable("(system.currentActor.is_holding ~= nil)", false) > 0;
-+				inventory = !putAway;
++				useHeld = LuaBase::instance()->queryVariable("(system.currentActor.is_holding ~= nil)", false) > 0;
++				inventory = !useHeld;
 +			}
 +			debug(1, "Grim Mouse: tap %d,%d; Manny %d,%d-%d,%d (drawn %s)%s", p.x, p.y, feet.x, feet.y, head.x, head.y,
 +			      _hotspotManager->mannyDrawn().c_str(),
-+			      putAway ? ": put away" : inventory ? ": coat" : "");
++			      useHeld ? ": use what's in hand" : inventory ? ": coat" : "");
  		}
  	}
-+	if (putAway) {
-+		Common::KeyState kbd(Common::KEYCODE_p, 'p');
-+		handleChars(Common::EVENT_KEYDOWN, kbd);
-+		handleControls(Common::EVENT_KEYDOWN, kbd);
-+		handleControls(Common::EVENT_KEYUP, kbd);
++	if (useHeld) {
++		// the 1998 U's own branch for nothing hot (_controls.lua: Sentence "use"
++		// with the held item), in mouse.lua's system.mouseUseHeld
++		LuaObjects objects;
++		LuaBase::instance()->callback("mouseUseHeld", objects);
 +		return true;
 +	}
  	if (inventory) {
  		Common::KeyState kbd(Common::KEYCODE_i, 'i');
  		handleChars(Common::EVENT_KEYDOWN, kbd);
-@@ -1363,6 +1404,15 @@ void GrimEngine::savegameRestore() {
+@@ -1363,6 +1407,15 @@ void GrimEngine::savegameRestore() {
  		lua_PatchGrimSave();
  	}
  
@@ -525,10 +528,10 @@ index f2fabc5..39c5e34 100644
  
  	_justSaveLoaded = true;
 diff --git a/engines/grim/grim.h b/engines/grim/grim.h
-index 8927544..9f26d98 100644
+index 0ac3cff..343d626 100644
 --- a/engines/grim/grim.h
 +++ b/engines/grim/grim.h
-@@ -216,6 +216,17 @@ protected:
+@@ -223,6 +223,17 @@ protected:
  	void pauseEngineIntern(bool pause) override;
  
  	void handleControls(Common::EventType type, const Common::KeyState &key);

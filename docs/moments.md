@@ -15,7 +15,10 @@ sets).
 
 **The rules every line follows** (PLAN.md, the laws):
 - Tap = the main action, two-finger tap = look (E), the tray's Skip = Esc.
-  A tap on Manny is the coat (I), or with something in hand puts it away (P).
+  A tap on Manny is the coat (I), or with something in hand uses it on its own
+  (the 1998 U with nothing targeted; Simon, 15 Nov 2026); a swipe up while
+  holding puts it away (P). Inside a moment, the moment's own rule for a tap
+  on Manny (below) comes first.
 - Every gesture sends the original's own keys to the scene's own handler,
   nothing else. "Held until there" means the engine holds the key the 1998
   player held (an arrow, say) and lets go when Manny, the vehicle or the
