@@ -550,7 +550,6 @@ index 0ac3cff..343d626 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..3e4c4b6 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -566,7 +565,7 @@ index f6552fb..3e4c4b6 100644
  
  void HotPolygon::draw(const Color &col) {
  	for (uint i = 0; i < _pnts.size(); i++) {
-@@ -180,13 +182,28 @@ bool HotspotMan::raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1) {
+@@ -180,13 +182,28 @@
  	return true;
  }
  
@@ -583,7 +582,7 @@ index f6552fb..3e4c4b6 100644
  	_cutScene(0), _ctrlMode(0), _rows(0), _cols(0), _x0(0), _y0(0), _w(0), _h(0),
 -	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr) {
 +	_offset(0), _initialized(false), _flashHS(false), _flashStart(0), _activeHS(nullptr),
-+	_driving(false), _driveKind(0), _driveReverse(false), _driveExit(false), _driveStart(0), _driveCheckTime(0),
++	_driving(false), _driveKind(0), _driveReverse(false), _driveExit(false), _driveTurnOnly(false), _driveStart(0), _driveCheckTime(0),
 +	_drivePressTime(0), _driveCheckYaw(0), _cranePoint(0), _craneLast(0),
 +	_momKind(0), _momNumHeld(0), _momStart(0), _momCheckTime(0), _momLastPress(0), _momTarget(0), _momCheckS(0),
 +	_momArrive(0), _momFwd(Common::KEYCODE_UP), _momBack(Common::KEYCODE_DOWN), _momGoal(0), _momThen(0),
@@ -596,7 +595,7 @@ index f6552fb..3e4c4b6 100644
  	ConfMan.registerDefault("grim_mouse_debug", false);
  	ConfMan.registerDefault("grim_mouse_names", false);
  	_showDebug = ConfMan.getBool("grim_mouse_debug");
-@@ -208,17 +225,18 @@ static Common::String readString(Common::SeekableReadStream *data) {
+@@ -208,17 +225,18 @@
  	return s;
  }
  
@@ -620,7 +619,7 @@ index f6552fb..3e4c4b6 100644
  		list.clear();
  		int numHS = data->readSint32LE();
  		for (int j = 0; j < numHS; j++) {
-@@ -245,11 +263,66 @@ void HotspotMan::initialize() {
+@@ -245,11 +263,66 @@
  		}
  	}
  	delete data;
@@ -687,7 +686,7 @@ index f6552fb..3e4c4b6 100644
  void HotspotMan::loadFlashBitmaps() {
  	for (int i = 0; i < 8; i++) {
  		Common::String fn = Common::String::format("cursor%d_hl.tga", i);
-@@ -318,7 +391,9 @@ void HotspotMan::drawActive() {
+@@ -318,7 +391,9 @@
  		}
  	}
  
@@ -698,7 +697,7 @@ index f6552fb..3e4c4b6 100644
  		const int dx = 4;
  		int num_rows = _inventory.empty() ? 1 : (_inventory.size() - 1) / _cols + 1;
  		int x1 = _x0 + _w * _cols, y1 = _y0 + _h * num_rows;
-@@ -354,6 +429,16 @@ void HotspotMan::drawActive() {
+@@ -354,6 +429,16 @@
  			if (hotspots[i]._setup == setup || _ctrlMode == Options)
  				hotspots[i]._region.draw(Color(0, 200, 200));
  		}
@@ -715,10 +714,12 @@ index f6552fb..3e4c4b6 100644
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -400,6 +485,64 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
+@@ -398,6 +483,109 @@
+ 	double a = x1.dotProduct(x1), b = -x1.dotProduct(y1), c = y1.dotProduct(y1);
+ 	double d = -x1.dotProduct(x0 - y0), e = y1.dotProduct(x0 - y0);
  	return (c * d - b * e) / (c * a - b * b);
- }
- 
++}
++
 +// PointyClicky Edition (15 Nov 2026): characters' live outlines. An object the
 +// game ties to a character (mouse.lua links X_obj to actor X) is found where the
 +// character is drawn this frame (its costume's box on screen), not on a fixed
@@ -743,6 +744,49 @@ index f6552fb..3e4c4b6 100644
 +	return a;
 +}
 +
++// The forklift as drawn, more closely than its box: the outline of its body
++// (0.45 behind its centre to its fork tips 0.6 ahead, 0.3 either side, the
++// floor to the top of its mast) on screen. Seen from above in the elevator its
++// screen box covered the floor round it and the grating Manny walks out by
++// (proof playthrough, 15 Nov 2026).
++static bool onForkliftBody(Actor *a, const Common::Point &p) {
++	float yr = a->getYaw().getRadians();
++	Math::Vector3d c = a->getPos(), fwd(-sinf(yr), cosf(yr), 0.f), side(cosf(yr), sinf(yr), 0.f);
++	Common::Array<Common::Point> pts;
++	for (int i = 0; i < 8; i++) {
++		Math::Vector3d w = c + fwd * ((i & 1) ? 0.6f : -0.45f) + side * ((i & 2) ? 0.3f : -0.3f) +
++		                   Math::Vector3d(0.f, 0.f, (i & 4) ? 1.1f : 0.f);
++		int x, y;
++		if (!HotspotMan::worldToScreen(w, x, y))
++			return true;   // not all on screen: its box, as before
++		pts.push_back(Common::Point(x, y));
++	}
++	// the convex hull of the eight (monotone chain), then p inside it
++	Common::sort(pts.begin(), pts.end(), [](const Common::Point &l, const Common::Point &r) {
++		return l.x < r.x || (l.x == r.x && l.y < r.y);
++	});
++	auto cross = [](const Common::Point &o, const Common::Point &q, const Common::Point &r) {
++		return (long)(q.x - o.x) * (r.y - o.y) - (long)(q.y - o.y) * (r.x - o.x);
++	};
++	Common::Array<Common::Point> h;
++	for (int pass = 0; pass < 2; pass++) {
++		uint start = h.size();
++		for (uint k = 0; k < pts.size(); k++) {
++			const Common::Point &q = pass ? pts[pts.size() - 1 - k] : pts[k];
++			while (h.size() >= start + 2 && cross(h[h.size() - 2], h[h.size() - 1], q) <= 0)
++				h.pop_back();
++			h.push_back(q);
++		}
++		h.pop_back();
++	}
++	if (h.size() < 3)
++		return true;
++	for (uint k = 0; k < h.size(); k++)
++		if (cross(h[k], h[(k + 1) % h.size()], p) < 0)
++			return false;
++	return true;
++}
++
 +// The touchable character under the pointer (the nearest, if several); -1 if none.
 +int HotspotMan::actorAt(const Common::Point &p, float &depth) {
 +	int best = -1;
@@ -751,6 +795,8 @@ index f6552fb..3e4c4b6 100644
 +			continue;
 +		Actor *a = liveActor(i);
 +		if (!a || !a->_screenBox.contains(p))
++			continue;
++		if (a->getName() == "forklift" && !onForkliftBody(a, p))
 +			continue;
 +		float d = cameraDepth(a->getWorldPos());
 +		if (best < 0 || d < depth) {
@@ -775,12 +821,10 @@ index f6552fb..3e4c4b6 100644
 +		return gid;
 +	}
 +	return -1;
-+}
-+
+ }
+ 
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
- 	if (!g_grim->getCurrSet())
- 		return;
-@@ -443,30 +586,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -443,30 +631,41 @@
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -840,7 +884,7 @@ index f6552fb..3e4c4b6 100644
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,8 +651,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -497,8 +696,9 @@
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
@@ -851,7 +895,7 @@ index f6552fb..3e4c4b6 100644
  			LuaObjects objects;
  			objects.add(button);
  			objects.add(gid);
-@@ -587,9 +742,12 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -587,9 +787,12 @@
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
@@ -866,7 +910,7 @@ index f6552fb..3e4c4b6 100644
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +767,31 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -609,6 +812,31 @@
  		}
  	}
  
@@ -898,7 +942,7 @@ index f6552fb..3e4c4b6 100644
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +799,9 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -616,16 +844,9 @@
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -918,7 +962,7 @@ index f6552fb..3e4c4b6 100644
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -645,6 +821,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
+@@ -645,6 +866,42 @@
  	return Common::Point(x, y);
  }
  
@@ -961,7 +1005,7 @@ index f6552fb..3e4c4b6 100644
  void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
  	Math::Vector3d r0, r1;
  	if (!raycast(cursor.x, cursor.y, r0, r1))
-@@ -698,6 +910,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -698,6 +955,8 @@
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -970,7 +1014,7 @@ index f6552fb..3e4c4b6 100644
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +972,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
+@@ -758,6 +1017,17 @@
  		}
  	}
  	savedState->endSection();
@@ -988,7 +1032,7 @@ index f6552fb..3e4c4b6 100644
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +1037,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
+@@ -812,6 +1082,16 @@
  		}
  	}
  	savedState->endSection();
@@ -1005,10 +1049,12 @@ index f6552fb..3e4c4b6 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1154,1136 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -917,6 +1197,1196 @@
+ 		_icons[pic] = it._bmp;
+ 	}
  	_inventory.push_back(it);
- }
- 
++}
++
 +// ---- The vehicles: tap where to go ------------------------------------------
 +//
 +// PointyClicky Edition (docs/moments.md, lines 1-5; Simon, 15 Nov 2026: "the
@@ -1044,8 +1090,11 @@ index f6552fb..3e4c4b6 100644
 +	uint32 timeout;    // never longer than this (ms)
 +};
 +static const DriveScale kWagonScale    = { 1.2f, 2.0f, 1.5f, 5.0f, 1.5f, 0.05f, 25000 };
-+// the forklift crawls (0.4 a second, 30 degrees a second) in a small cellar
-+static const DriveScale kForkliftScale = { 0.3f, 0.5f, 0.4f, 1.5f, 0.4f, 0.01f, 45000 };
++// the forklift crawls (0.4 a second, 30 degrees a second) in a small cellar,
++// and in the elevator has a box of 0.6 by 0.7 to move in and two lanes 0.07
++// wide to line up with (de.lua's fork_box2/3): it goes where it's tapped to
++// within a few centimetres, and a tap only on a way out is one
++static const DriveScale kForkliftScale = { 0.06f, 0.15f, 0.12f, 1.5f, 0.08f, 0.005f, 45000 };
 +
 +static const float kDriveSteer = 6.f;         // steer while it is off by more (degrees)
 +static const float kDriveThrottle = 70.f;     // gas (or reverse) only while it is off by less
@@ -1253,8 +1302,30 @@ index f6552fb..3e4c4b6 100644
 +		return tunnelTap(v, cursor);
 +
 +	const DriveScale &sc = kind == kForklift ? kForkliftScale : kWagonScale;
-+	// on the vehicle, as it is drawn: U, get out
-+	if (onActor(v, cursor)) {
++	// on the vehicle, as it is drawn: U, get out. The forklift: on its seat,
++	// where Manny sits (he is part of its costume while he drives). Seen from
++	// above in the cellar's small elevator its whole box covers the floor round
++	// it and the grating it must drive at, so the rest of it is where to drive
++	// (proof playthrough, 15 Nov 2026).
++	// (jammed in the shaft it can't move but back out, so a tap anywhere on
++	// it is still getting off, and anywhere else backing out)
++	bool onIt;
++	if (kind == kForklift && !luaTrue("de.shaft.stuck")) {
++		// (the seat is behind the forklift's centre, the mast and forks ahead)
++		float yr = v->getYaw().getRadians();
++		Math::Vector3d seat = v->getPos() + Math::Vector3d(sinf(yr) * 0.3f, -cosf(yr) * 0.3f, 0.45f);
++		Math::Vector3d rim = seat + Math::Vector3d(0.f, 0.f, 0.2f);
++		int sx, sy, rx, ry;
++		if (worldToScreen(seat, sx, sy) && worldToScreen(rim, rx, ry)) {
++			int r = MAX(18, (int)sqrtf((float)((rx - sx) * (rx - sx) + (ry - sy) * (ry - sy))));
++			onIt = onActor(v, cursor) && (cursor.x - sx) * (cursor.x - sx) + (cursor.y - sy) * (cursor.y - sy) <= r * r;
++			debug(1, "Grim Mouse: forklift tap %d,%d: seat %d,%d, reach %d: %s", cursor.x, cursor.y, sx, sy, r,
++			      onIt ? "on it" : "not on it");
++		} else
++			onIt = onActor(v, cursor);
++	} else
++		onIt = onActor(v, cursor);
++	if (onIt) {
 +		driveStop("tap on the vehicle");
 +		pressKey(Common::KEYCODE_u, 'u', "on the vehicle: U");
 +		return true;
@@ -1288,6 +1359,22 @@ index f6552fb..3e4c4b6 100644
 +	away.z() = 0;
 +	_driveReverse = fabs(off) > kDriveBehind && away.getMagnitude() < sc.backUp;
 +	_driveExit = exit;
++	// already as near the tap as the vehicle can get (the forklift in the
++	// elevator, a box it can barely move in): the tap is where to face, so it
++	// turns on the spot to face it (the 1998 arrows only, no gas), as a player
++	// turned it in a space too small to drive round in
++	_driveTurnOnly = false;
++	if (kind == kForklift && !exit && path.size() == 1) {
++		Math::Vector3d near = path.front() - v->getPos();
++		near.z() = 0;
++		float faceOff = angleDiff(v->getYawTo(target).getDegrees() - v->getYaw().getDegrees());
++		if (near.getMagnitude() < sc.arrive && fabs(faceOff) > kDriveSteer) {
++			_driveTurnOnly = true;
++			_driveReverse = false;
++			path.clear();
++			path.push_back(target);
++		}
++	}
 +	_drivePath = path;
 +	_driveTarget = path.front();
 +	_driveSet = g_grim->getCurrSet()->getName();
@@ -1297,7 +1384,7 @@ index f6552fb..3e4c4b6 100644
 +	// a new tap mid-drive: the keys held now that the new target doesn't want
 +	// are let go by the next update
 +	debug(1, "Grim Mouse: %s: drive %s to %.2f,%.2f%s (tap %d,%d, %.0f deg off, %d waypoints)%s", kVehicleNames[kind],
-+	      _driveReverse ? "back" : "on", _driveTarget.x(), _driveTarget.y(), exit ? ", a way out" : "", cursor.x, cursor.y,
++	      _driveTurnOnly ? "round to face" : _driveReverse ? "back" : "on", _driveTarget.x(), _driveTarget.y(), exit ? ", a way out" : "", cursor.x, cursor.y,
 +	      off, _drivePath.size(), wasDriving ? ", re-targeted" : "");
 +	driveUpdate();
 +	return true;
@@ -1485,6 +1572,23 @@ index f6552fb..3e4c4b6 100644
 +	debug(3, "Grim Mouse: drive t=%u at %.2f,%.2f yaw %.0f, %.0f deg off, %.2f to go, %d waypoints, keys %d%d%d%d",
 +	      now - _driveStart, pos.x(), pos.y(), yaw, off, dist, _drivePath.size(),
 +	      _driveHeld[0], _driveHeld[1], _driveHeld[2], _driveHeld[3]);
++	if (_driveTurnOnly) {
++		// turning on the spot to face the tap: the arrow that turns it, no gas
++		driveKey(kDriveUp, false);
++		driveKey(kDriveDown, false);
++		if (fabs(off) <= kDriveSteer)
++			return driveStop("facing it");
++		if (now - _driveCheckTime >= kDriveStall) {
++			if (fabs(angleDiff(yaw - _driveCheckYaw)) < kDriveStallTurn)
++				return driveStop("can't turn here");
++			_driveCheckTime = now;
++			_driveCheckYaw = yaw;
++		}
++		bool wantLeft = off > 0;
++		driveKey(wantLeft ? kDriveRight : kDriveLeft, false);
++		driveKey(wantLeft ? kDriveLeft : kDriveRight, true);
++		return;
++	}
 +	// (on a way out, "there" is well inside it: by then the game has taken the
 +	// scene away, or it had something to say instead: Glottis won't go yet)
 +	if (_drivePath.size() == 1 && dist < (_driveExit ? sc.arrive / 3 : sc.arrive))
@@ -1770,8 +1874,8 @@ index f6552fb..3e4c4b6 100644
 +	Common::KeyCode want = togo > 0 ? _momFwd : _momBack;
 +	momentHold(want == _momFwd ? _momBack : _momFwd, false);
 +	momentHold(want, true);
-+}
-+
+ }
+ 
 +// The broadaxe: Manny drags it backwards, so a tap on the floor is turned to
 +// (his back to it: Left or Right held), then backed to (Down held).
 +void HotspotMan::axeUpdate() {
@@ -2143,7 +2247,6 @@ index f6552fb..3e4c4b6 100644
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..bd9e5e7 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2162,7 +2265,7 @@ index 9d342ba..bd9e5e7 100644
  class Bitmap;
  class SaveGame;
  
-@@ -61,6 +63,17 @@ struct HotObject {
+@@ -61,6 +63,17 @@
  	Math::Vector3d _pos;
  	Common::Rect _rect;
  	bool _active;
@@ -2180,7 +2283,7 @@ index 9d342ba..bd9e5e7 100644
  };
  
  struct MouseHotspot {
-@@ -88,6 +101,9 @@ public:
+@@ -88,6 +101,9 @@
  	void disableAll();
  	HotObject *getObject(int idx) { return idx >= 0 && idx < (int)_hotobject.size() ? &_hotobject[idx] : nullptr; }
  
@@ -2190,7 +2293,7 @@ index 9d342ba..bd9e5e7 100644
  	void initialize();
  	void event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick);
  	void hover(const Common::Point &cursor);
-@@ -111,6 +127,39 @@ public:
+@@ -111,7 +127,40 @@
  	void setOptionMode(const Common::String &name) { _curOption = name; }
  	const Common::String &getOptionMode() const { return _curOption; }
  	Common::Point mannyPos2D(float zOffset);
@@ -2203,7 +2306,7 @@ index 9d342ba..bd9e5e7 100644
 +	 */
 +	bool tapOnManny(const Common::Point &p);
 +	Common::String mannyDrawn();
-+
+ 
 +	/**
 +	 * PointyClicky Edition, the vehicles (docs/moments.md, lines 1-5): while
 +	 * the game's own handler for the Bone Wagon, the forklift, the tunnel ride
@@ -2227,10 +2330,11 @@ index 9d342ba..bd9e5e7 100644
 +	 */
 +	bool momentEvent(const Common::Event &ev, const Common::Point &cursor);
 +	void momentUpdate();
- 
++
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
-@@ -127,10 +176,71 @@ protected:
+ 
+@@ -127,10 +176,72 @@
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
@@ -2260,6 +2364,7 @@ index 9d342ba..bd9e5e7 100644
 +	int _driveKind;
 +	bool _driveReverse;
 +	bool _driveExit;      // the tap was on a way out: drive on until the game takes the scene away
++	bool _driveTurnOnly;  // already as near the tap as it can get: only turn to face it
 +	Math::Vector3d _driveTarget;
 +	Common::List<Math::Vector3d> _drivePath;   // the game's own route, next waypoint last
 +	Common::String _driveSet;

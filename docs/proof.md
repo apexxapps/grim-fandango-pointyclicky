@@ -1,9 +1,8 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
-*Started 15 Nov 2026. In progress: Year 1, from a new game through El Marrow,
-the Petrified Forest and the beavers, to Rubacava's docks. Not yet at the
-credits. Resume from save 115 (build/bench/saves/grim115.gsv; see "Resume here"
-at the end).*
+*Started 15 Nov 2026. In progress: from a new game through Year 1 and into
+Year 2 (the union card). Not yet at the credits. Resume from save 146
+(build/bench/saves/grim146.gsv; see "Resume here" at the end).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -166,6 +165,51 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     it isn't drawn. Proven from save 99: the same tap walks, the cursor stays
     bone (421-422); a tap on the sign as drawn takes it ("tap on sign post (as
     drawn)", 425-426).
+
+19. **lm, setups 2 and 3 (lm_gngms, lm_nolim), the bottle on Velasco's desk
+    (lmtx115).** Its outline was a band over the whole dock (x 70-639, y
+    160-450), Velasco and Manny's own floor included, so a tap on Velasco took
+    the bottle ("tap on bottle": Manny walks over and remarks) and his
+    conversation could not be started. Redrawn round the bottle on the desk (x
+    512-560, y 274-306); in hand.txt. Shots 598-599 (the bottle taken), 600-601
+    (a tap on Velasco: his conversation).
+20. **cn, the roulette room: no way back out to the bar** (a dead end). A tap on
+    the door (cntx249) did nothing. The game's `Sentence("walkOut")` walks first
+    to a closed door's use point, and cn's (-0.64, 0.35) is off the floor: the
+    room's walk sectors are one narrow walkway from Charlie's booth to the door
+    corridor, so Manny stopped at its corner (-0.175, 0.65) and the sentence gave
+    up (read in observer runs of saves 123 and 124). The 1998 player left by
+    walking into the door's box (ci_box), which runs the door's own walkOut.
+    mouse.lua's `walk_and_do`: when the walk to a closed door's use point fails,
+    Manny walks (or runs) on to the door's out point, through its box, and the
+    game does the rest; if no box took it, the door's own walkOut is called.
+    Proven from save 124 (Manny stuck at the corner: a tap on the door, out to
+    the bar, 642) and save 123 (a double tap from the booth, 643). Shots 635-641
+    (stuck). *Tools item:* other doors whose use point is off the floor would
+    have failed the same way; the fix covers them all.
+
+21. **The forklift in the elevator (moment 2; de): it could not be lined up,
+    got off or worked from its lever side** (a dead end for the union card).
+    Seen from above in the elevator, the forklift's drawn box covered most of
+    the floor and the grating: (a) every tap on the grating, where it must be
+    driven to jam the shaft, was "on the vehicle" (U, get off: shots 732, 747);
+    (b) a tap the forklift was already "at" did nothing, so it could not be
+    turned to line up with the lanes (fork_box2/3, 0.07 wide); (c) the drive
+    scale stopped it 0.3 short, wider than the lanes (748-749); (d) from the
+    lever side, a tap took the forklift (get on), never the fork lever, which the
+    game makes touchable there (de.forklift_actor.monitor_objects). Fixes, in
+    the engine (hotspotman.cpp) and mouse.lua: getting off is a tap on the seat,
+    where Manny sits (and anywhere on it while jammed in the shaft); the forklift
+    is found by the outline of its body (fork tips to rear, floor to mast top),
+    not its screen box; a tap it is already at turns it on the spot to face the
+    tap (the arrows only); the forklift's scale is now 0.06 to arrive (0.08 for a
+    way out); and in mouse.lua a tap on the forklift works the lever when the
+    game has made the lever the touchable one (Manny at the lever's side, not
+    driving). Proven: turned (739, 743), lined up (750), off by the seat (754,
+    758), button, on, pushed through the window: the elevator jams on the forks
+    (757, save 142), round to the lever side (764), a tap: the forks up, the
+    hidden floor (765, save 144), into the hallway (768) and the suitcase (771-
+    773). Bench: build/proof-bench save 139-146.
 
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
@@ -414,27 +458,85 @@ lines. Every new hand fix needs its line there.)
   binding is gone. Put away (P = the app's swipe up) was used before each dam
   tap, before the wagon, and before each throw.
 
-## Resume here (after the fourth session, 15 Nov 2026)
+### Year 1: Rubacava (fifth session, 15 Nov 2026)
 
-- **Save 115** (build/bench/saves/grim115.gsv): Rubacava, the docks, Manny at
-  the foot of the lighthouse stairs (re), Year 1's forest done.
-- Start: `tools/proof/cycle.sh 115 nosave`. Steps: `tools/proof/g.py '<json>'`.
-- **Held items (fix 17):** a tap on Manny with an item in hand uses it on its
-  own; to put it away the app will send P for a swipe up. On the bench there's
-  no swipe: `{"key":"p"}` stands in for it (log it as the swipe).
-- Next (the walkthrough, "Welcome to Rubacava"): into the diner, Celso ("What
-  are you doing here?", "You must love her very much, Celso", "How do you know
-  your wife hasn't gone ahead of you?", "I'll help you find your wife...", "Well,
-  I'd better go see how my other clients are doing..."): the photo; down the
-  stairs, left into the fog... then on through Year 1's Rubacava to Year 2.
-- Known ahead: the lighthouse top (no tap moves Manny), the conveyor belt's
-  invented `cy.offbelt` (retire it for the game's jump box).
-- Reading state: observer runs (`tools/proof/qq.sh <slot> <lua>`: saves, runs
-  the Lua in a developer-mode copy, restarts the proof bench at the slot).
+- **re, ri: Welcome to Rubacava.** Up the stairs, into the diner; Celso by
+  tapping lines ("What are you doing here?", "You must love her...", "How do
+  you know your wife hasn't gone ahead...", "I'll help you find your wife...",
+  "Well, I'd better go see how my other clients are doing"): the photo (531-
+  537). Down the stairs, into the fog: rescued (540-546). Velasco: "Well, don't
+  let me interrupt your car talk"; coat, the photo on him; "How do you know she
+  sailed out of here?", "...car talk": the port log (547-555). Save 116. Up into
+  the diner, the coat, the log on Celso; the cut scenes to Year 2 (558-565).
+  Save 117.
+
+### Year 2
+
+- **cb, cf: Manny's office.** Out of the balcony into the office (567). The
+  letters on the table: a tap reads them and takes them (575; the game's own use
+  is lookAt, which picks them up first; a mouse.lua change made for it was not
+  needed and was taken back). Save 120.
+- **cc, ce, re, lm: the Lambada.** Down to the coat check; Lupe: "Okay, back to
+  work" (586-587). Down the stairs to the docks: Meche, the cut scene (594-596).
+  Save 121. **lm** (fix 19): Velasco: "Alright, I'm ready to sail!", "I'll
+  work!", "...Glottis some tools...", "Who's the one guy...", "What if Naranja
+  doesn't show up?", "So let me get this straight...", "I'd better go finish
+  packing" (600-608). Save 122.
+- **hb, bw, ev, ce, cc, ci: the union card.** Through the hub and the Blue
+  Casket's elevator up to the cafe (610-623). The gold flake liqueur off the bar
+  (625; P put it away). **cn**: Charlie: "Right. So what are you doing in it?",
+  "How did you print fake betting stubs?", "What else can you counterfeit?",
+  "Can you make reasonable union cards?": the VIP pass and the printer (629-
+  634). Save 123. Stuck in the roulette room (fix 20), out (643). Save 125.
+  The VIP pass on Glottis (649-650). Save 126.
+- **ce, cl, ev, bw, dd, hb, xb: to the track.** The plaza, the elevator down,
+  the dry dock, the hub, the extendo bridge (667). The lever: Manny pulls it, the
+  bridge goes over (668-671; the first tap's pull ends while the bridge is still
+  moving: wait for it). Across (672). Save 128.
+- **tx, ts, kh, ks, tb, hh, hl, hk.** Up to the cat track; the plaque on the
+  stuffed cat, by two fingers: Week 2 (679-681). The litter room: the can
+  opener (685; the tap on the opener's outline took it, the shot shows the
+  pickup). The betting hall, the lounge corridor, the VIP lounge (694). Save
+  131. **hk**, the kitchen: the turkey baster (697). The waiter: he comes about
+  every 20-27 s; the pantry closed by a tap (699); the scythe on the pantry doors
+  while he is inside (712: the trap, "Oh! Zut!", 713). Save 133. The baster
+  (715), the ladder, the can opener on the cask top (722-724); the stowaway (727-
+  728). **wc**, the wine cellar (729). Save 134.
+- **wc, de, dh: the forklift and the hidden floor** (moment 2, fix 21). On by a
+  tap; into the elevator (731). Lined up on the lower lane, off by the seat,
+  the button, back on, pushed at the window: jammed (757). Off, round to the
+  lever side, a tap on the forklift: the forks up, the hidden hallway (765, 768).
+  The suitcase (771-773); the union card's cut scene runs on (774-775). **Save
+  146** (Manny with the suitcase, the hidden hall).
+
+## Resume here (after the fifth session, 15 Nov 2026)
+
+- **Save 146** (build/bench/saves/grim146.gsv): Year 2, the union card's
+  suitcase taken, Manny in the hall past the hidden floor (the cut scene may
+  still be running on load: wait for the bone cursor).
+- Start: `tools/proof/cycle.sh 146 nosave`. Steps: `tools/proof/g.py '<json>'`.
+- Held items: a tap on Manny uses it on its own; `{"key":"p"}` stands in for
+  the swipe up (put away).
+- Next (the walkthrough, Year 2 "Seaman Naranja"): the Blue Casket, Olivia
+  ("Well, catch ya later, hep chick"), the kitchen: the baster in the
+  dishwater; Toto's shack: fridge, crisper, the baster on Naranja's bottle;
+  his dog tags; the blimp security desk (the liqueur, through the detector),
+  Carla; the litter box ledge, the scythe on the letter box (the detector); the
+  morgue. Then "SeaBee Tools" and "Betting the Farm" to the end of Year 2.
+- Known ahead: the roulette panel (moment, cf), the conveyor belt's invented
+  `cy.offbelt` (Year 3), the lighthouse top.
+- Bench notes: a tap on Manny's own drawn box is the coat; dialogue lines are
+  tapped at x 90, rows y 396/418/439/461. A double tap whose first tap lands on
+  Manny opens the coat and the second takes the item in the middle: aim runs
+  away from him.
+- Reading state: observer runs (`tools/proof/qq.sh <slot> <lua>`), never the
+  proof game.
 - The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
   in ~/Developer/pointyclicky-build; the FreeType lines are in both config.mk
   (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib -lfreetype -lz
   -lbz2`); a reconfigure loses them.
 - engine/grim_edition.patch is cut against ScummVM 2026.4.0 +
-  grim_pointyclicky.patch alone (the room adapter's grim.cpp/grim.h/module.mk
-  changes left out).
+  grim_pointyclicky.patch alone (build/proof-bench/patchgen holds that base;
+  the room adapter's grim.cpp/grim.h/module.mk changes are left out). This
+  session's hotspotman.cpp/.h sections were re-cut from it and the whole patch
+  checked with `git apply` on a copy of the base.

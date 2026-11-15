@@ -22,3 +22,7 @@ Y1 tr (session 2): tap on barrow went to the Bone Wagon behind the camera (F14) 
 Y1 (session 4) Simon's held-item job (F17): tap on Manny with an item = U on its own (mouthpiece bite q1-d..f, sign spin q1-u..y), P (swipe up) puts away, two fingers on the floor only walk [q1-*]
 Y1 lb: way out needs a second tap (the game's own rock shortcut ends the walk) [411-412]; na: the sign's strip outline took floor taps (F18) [418-426]; sg: key put away, wagon [443]; bumpy road -> bv [444] SAVE 107
 Y1 bv: gate, chased out [449-454] SAVE 108; bd: three bones from the dam [456-458] SAVE 109; tar: throw, coat, extinguisher, press-and-hold: beavers frozen [497, 500, 506] SAVES 112-114; bv padlock: key, out of the forest [512-519]; Rubacava docks [520] SAVE 115
+Y1 re/ri: Celso (photo), the fog, Velasco (port log), the log on Celso [531-565] SAVES 116-117
+Y2 cf letters [575]; cc Lupe; lm Meche; Velasco (F19) [586-608] SAVES 120-122; ci liqueur; cn Charlie: pass, printer [625-634] SAVE 123; roulette room door (F20) [635-643] SAVE 125; pass on Glottis [649] SAVE 126
+Y2 xb bridge lever [667-672] SAVE 128; kh plaque Week 2 [679]; ks opener [685]; hl, hk: baster, waiter trapped [697-713] SAVE 133; cask, stowaway [715-729] SAVE 134
+Y2 de forklift (F21): lined up, jammed, lever, hidden floor, suitcase [731-775] SAVES 135-146

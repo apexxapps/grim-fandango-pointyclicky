@@ -171,6 +171,28 @@ walk_and_do = function(arg1, arg2, arg3, arg4, arg5) -- line 83
     if cutSceneLevel > 0 then
         return
     end
+    -- PointyClicky Edition (proof playthrough, 15 Nov 2026): a closed door whose
+    -- use point is off the floor. The game's Sentence("walkOut") first walks to
+    -- the door's use point, and where no walk sector reaches it (cn's door back
+    -- to the bar: -0.64,0.35, beside the room's one narrow walkway) it gives up,
+    -- so a tap on the door did nothing. The 1998 player left by walking into the
+    -- door's box, which runs the door's own walkOut (_system.lua's box watch). So
+    -- here: walk on to the door's out point, through its box, and the game does
+    -- the rest; if no box took it, the door's own walkOut is called.
+    if arg1 == "walkOut" and not result and system.currentActor == manny and arg2.out_pnt_x
+        and not arg2.use_immediate and not system.currentActor.driveto and not arg2:is_open() then
+        local set0 = system.currentSet
+        if arg4 == 2 then
+            system.currentActor:runto_object(arg2, TRUE)
+        else
+            system.currentActor:walkto_object(arg2, TRUE)
+        end
+        if cutSceneLevel > 0 or system.currentSet ~= set0 then
+            return
+        end
+        Sentence(arg1, arg2, arg5, TRUE)
+        return
+    end
     if arg3 == 4 or arg3 == 5 then
         if not arg2.walkOut then
             arg1 = "lookAt"
@@ -236,6 +258,18 @@ Set.mouseCommand = function(arg1, arg2, arg3, arg4) -- line 162
     while local1 do
         if type(local2) == "table" then
             if local2.hotspot_id == arg3 then
+                -- PointyClicky Edition (proof playthrough, 15 Nov 2026): the
+                -- forklift and its fork lever are one thing on screen (the
+                -- forklift is found where it's drawn), and the game itself says
+                -- which of the two Manny is at: de.forklift_actor.monitor_objects
+                -- makes the one nearer him touchable, the other not (the 1998
+                -- keyboard's hot object). So a tap on the forklift works the
+                -- lever when Manny is at the lever's side (the elevator: raise
+                -- the forks to block the shaft).
+                if local2 == arg1.forklift and type(arg1.lever) == "table" and arg1.lever.touchable
+                    and not local2.touchable and not system.currentActor.is_driving then
+                    local2 = arg1.lever
+                end
                 kill_soft_scripts()
                 stop_script(walk_and_do)
                 stop_script(just_walk)

@@ -210,10 +210,12 @@ point where you want to go or what you want to work, and click.
    and clicking (no keys). It needs a Grim state reader, which also gives
    Grim a walkthrough and NudgeAI hints.
    **In progress (docs/proof.md):** played by pointer from a new game, Year 1
-   through El Marrow, the Petrified Forest and the beavers to Rubacava's docks
-   (15 Nov 2026); eighteen fixes on the way (two dead ends: Copal's computer
-   kept the pointer after it closed; the wheelbarrow's pull never ended), and
-   the held-item gesture decided (a tap on Manny uses it on its own).
+   through El Marrow, the Petrified Forest, the beavers and Rubacava, into
+   Year 2 to the union card (15 Nov 2026); twenty-one fixes on the way (four
+   dead ends: Copal's computer kept the pointer after it closed; the
+   wheelbarrow's pull never ended; the roulette room's door; the forklift in
+   the elevator), and the held-item gesture decided (a tap on Manny uses it on
+   its own).
 3. **Coverage**: during that run, every object the game ever made touchable
    was reachable by the pointer at least once.
 4. **Known faults**: Grim Mouse's crash at Domino's computer (#48), its
