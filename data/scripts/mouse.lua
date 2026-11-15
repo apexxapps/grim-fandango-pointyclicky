@@ -674,6 +674,25 @@ co.computer.draw_choices = function(arg1)
         pc_co_draw_choices(arg1)
     end
 end
+-- PointyClicky Edition (proof playthrough, 15 Nov 2026): co.lua's patch puts the
+-- pointer in its dialogue mode when the computer opens, and only Grim Mouse's
+-- mouseSelect put it back. The computer is worked by its own keys now
+-- (docs/moments.md line 11), so after a reply (or Esc) every tap went on to the
+-- closed computer and Manny was stuck in Copal's office. Leaving the computer
+-- puts the pointer back, whichever way it's left.
+if not pc_co_stop_interface then
+    pc_co_stop_interface = co.computer.stop_interface
+end
+co.computer.stop_interface = function(arg1)
+    SwitchControlMode(0)
+    pc_co_stop_interface(arg1)
+end
+-- (and a save made while stuck so comes back with the pointer free: this file
+-- runs again after every load)
+if system.lastDialog == co.computer and not co.computer.interface_active then
+    system.lastDialog = nil
+    SwitchControlMode(0)
+end
 co.computer.mouseSelect = function(arg1, arg2, arg3) -- line 753
     if not co.computer.interface_active then
         return

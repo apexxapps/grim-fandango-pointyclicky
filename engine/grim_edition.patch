@@ -366,7 +366,7 @@ index bc268b4..72f06ea 100644
  	/**
  	 * Sets the scale of the actor.
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
-index 7df0c64..150c04a 100644
+index 7df0c64..012bc92 100644
 --- a/engines/grim/grim.cpp
 +++ b/engines/grim/grim.cpp
 @@ -828,8 +828,11 @@ void GrimEngine::luaUpdate() {
@@ -429,7 +429,7 @@ index 7df0c64..150c04a 100644
  	bool doubleClick = false;
  	if (type == Common::EVENT_LBUTTONDOWN) {
  		uint32 now = g_system->getMillis();
-@@ -1022,7 +1048,10 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1022,19 +1048,34 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	}
  	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
  	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
@@ -441,18 +441,21 @@ index 7df0c64..150c04a 100644
  	    !_hotspotManager->isDialog()) {
  		// On Manny (he stands in front of whatever is behind him): from his
  		// feet to the top of his head on screen, a quarter of that either side.
-@@ -1031,10 +1060,22 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
++		// (HotspotMan::tapOnManny: Manny as drawn, and a thing nearer the camera wins)
+ 		Common::Point feet = _hotspotManager->mannyPos2D(0.f), head = _hotspotManager->mannyPos2D(0.6f);
+ 		Common::Point p = _cursor->getPosition();
  		if (feet.x || feet.y) {
- 			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
- 			int cx = (feet.x + head.x) / 2;
+-			int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4;
+-			int cx = (feet.x + head.x) / 2;
 -			inventory = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
 -			debug(1, "Grim Mouse: right click %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y, inventory ? ": inventory" : "");
-+			bool onManny = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
++			bool onManny = _hotspotManager->tapOnManny(p);
 +			if (onManny) {
 +				putAway = LuaBase::instance()->queryVariable("(system.currentActor.is_holding ~= nil)", false) > 0;
 +				inventory = !putAway;
 +			}
-+			debug(1, "Grim Mouse: tap %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y,
++			debug(1, "Grim Mouse: tap %d,%d; Manny %d,%d-%d,%d (drawn %s)%s", p.x, p.y, feet.x, feet.y, head.x, head.y,
++			      _hotspotManager->mannyDrawn().c_str(),
 +			      putAway ? ": put away" : inventory ? ": coat" : "");
  		}
  	}
@@ -505,7 +508,7 @@ index 0ac3cff..343d626 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..8786612 100644
+index f6552fb..ae21b43 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -868,7 +871,50 @@ index f6552fb..8786612 100644
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -698,6 +869,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -645,6 +816,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
+ 	return Common::Point(x, y);
+ }
+ 
++Common::String HotspotMan::mannyDrawn() {
++	Actor *manny = getManny();
++	if (!manny || manny->_screenBox.isEmpty())
++		return "-";
++	const Common::Rect &b = manny->_screenBox;
++	return Common::String::format("%d,%d-%d,%d %ums ago", b.left, b.top, b.right, b.bottom, g_system->getMillis() - manny->_screenBoxTime);
++}
++
++bool HotspotMan::tapOnManny(const Common::Point &p) {
++	Actor *manny = getManny();
++	if (!manny || !g_grim->getCurrSet())
++		return false;
++	manny->_screenBoxWanted = true;
++	bool drawn = !manny->_screenBox.isEmpty() && g_system->getMillis() - manny->_screenBoxTime < 250;
++	// his feet to the top of his head, a quarter of that either side
++	Common::Point feet = mannyPos2D(0.f), head = mannyPos2D(0.6f);
++	if (!feet.x && !feet.y)
++		return false;
++	int top = MIN(feet.y, head.y) - 8, bottom = MAX(feet.y, head.y) + 4, cx = (feet.x + head.x) / 2;
++	bool on = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
++	if (on && drawn) {
++		// and where he's drawn, and at the height of his head only his head (a
++		// thing beside his head, over his shoulder, is that thing)
++		const Common::Rect &b = manny->_screenBox;
++		on = b.contains(p);
++		if (on && p.y < b.top + b.height() * 22 / 100 && ABS(p.x - head.x) > MAX(16, b.width() / 6))
++			on = false;
++	}
++	if (!on)
++		return false;
++	int ooid = outlineObjectAt(p, g_grim->getCurrSet()->getSetup());
++	if (ooid > 0 && cameraDepth(_hotobject[ooid]._pos) < cameraDepth(manny->getPos()))
++		return false;
++	return true;
++}
++
+ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
+ 	Math::Vector3d r0, r1;
+ 	if (!raycast(cursor.x, cursor.y, r0, r1))
+@@ -698,6 +905,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -877,7 +923,7 @@ index f6552fb..8786612 100644
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +931,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
+@@ -758,6 +967,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -895,7 +941,7 @@ index f6552fb..8786612 100644
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +996,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
+@@ -812,6 +1032,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -912,7 +958,7 @@ index f6552fb..8786612 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1113,1129 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1149,1129 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -2043,7 +2089,7 @@ index f6552fb..8786612 100644
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..430822a 100644
+index 9d342ba..d450a17 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2080,10 +2126,20 @@ index 9d342ba..430822a 100644
  };
  
  struct MouseHotspot {
-@@ -112,6 +125,30 @@ public:
+@@ -111,6 +124,39 @@ public:
+ 	void setOptionMode(const Common::String &name) { _curOption = name; }
  	const Common::String &getOptionMode() const { return _curOption; }
  	Common::Point mannyPos2D(float zOffset);
- 
++	/**
++	 * PointyClicky Edition: is a tap at p on Manny (the coat)? Manny as drawn
++	 * this frame (his costume's box on screen) when the engine has it, else his
++	 * feet to the top of his head, a quarter of that either side. An object
++	 * outlined under the pointer nearer the camera than Manny wins (he stands
++	 * behind a desk), and so does one outside Manny as drawn.
++	 */
++	bool tapOnManny(const Common::Point &p);
++	Common::String mannyDrawn();
++
 +	/**
 +	 * PointyClicky Edition, the vehicles (docs/moments.md, lines 1-5): while
 +	 * the game's own handler for the Bone Wagon, the forklift, the tunnel ride
@@ -2107,11 +2163,10 @@ index 9d342ba..430822a 100644
 +	 */
 +	bool momentEvent(const Common::Event &ev, const Common::Point &cursor);
 +	void momentUpdate();
-+
+ 
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
- 
-@@ -127,10 +164,72 @@ protected:
+@@ -127,10 +173,72 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
