@@ -57,7 +57,7 @@ that every later phase is checked against:
 | Where each object lands on each angle | the engine's own projection | done |
 | Whether it's hidden there | the angle's depth image (`.zbm`) | next |
 | Every exit | walk sectors, door objects' `walkOut`, the set-change scripts | next |
-| Every moment the game takes the controls | scripts installing their own button handler | found: 29 scenes |
+| Every moment the game takes the controls | scripts installing their own button handler | found: 29 installs, 24 moments (docs/moments.md) |
 | Every conversation | the dialogue scripts (`dlg_*`) | found: 39 scripts |
 | Every item | the inventory scripts and the item renders | next |
 
@@ -184,7 +184,8 @@ emergency font). Those are ours to design (phase 2 and the decisions above).
 
 Each is a scene whose script installs its own key handler: the forklift,
 the elevators, the Bone Wagon, the computer, the roulette panel, the
-climbs, the linear puzzles and so on (the answer key names all 29). Each one
+climbs, the linear puzzles and so on (29 handler installs, 24 moments: each
+one proposed in docs/moments.md, for Simon to approve before any is built). Each one
 gets a designed pointer version that sends that handler the same keys the
 original's player pressed (law 2), with the same rule set for all of them:
 point where you want to go or what you want to work, and click.
