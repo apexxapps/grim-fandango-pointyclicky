@@ -1,6 +1,6 @@
 # The moments the game takes the controls: proposals for Simon
 
-*Not built. For Simon to approve, line by line (15 Nov 2026).*
+*For Simon to approve, line by line (15 Nov 2026). Built: the vehicles (lines 1-5).*
 
 **What counts as a moment.** A scene whose script installs its own key handler
 (`system.buttonHandler = ...` in the game's scripts) instead of the normal
@@ -56,32 +56,96 @@ P pick up, E examine, I inventory, Esc override.
    game's own developer jump `stump` (the cut scene that takes Manny from El
    Marrow into the forest), then played by pointer: the heart ripped out, the
    bone, the scythe on the web, the heart back in Glottis, the Copal movie, the
-   first ride. `developerMode` was cleared before saving. `sg.bone_drive` is
-   still how a tap gets Manny back in when he's on foot (Grim Mouse's patched
-   sg.lua makes it touchable). Linking `sg.bone_wagon` to the wagon's actor
-   would retire it. Not done yet.
+   first ride (build/for-simon/grim13.gsv).
+   **Simon tried it (15 Nov 2026): "It's not a driving experience, the point and
+   click just works."** His one critique: turning is very slow.
+   **The 1998 values back (15 Nov 2026).** Grim Mouse's sg.lua started the wagon
+   at walk_rate 3.5 and turn_rate 40 and set its walk rate to 4 on getting in;
+   the edition's sg.lua is the 1998 one there (0.5, `min_turn_rate`, nothing).
+   It changes no turning: the game's own `bonewagon.monitor_turns` sets the turn
+   rate every frame, in both, to **20 x the wagon's speed (world units a second),
+   at most 60 degrees a second** (reached at 3 a second; top speed 4.5), and
+   standing still an arrow turns it on the spot at **30 degrees a second**. The
+   drive lets go of the gas while the wagon is more than 70 degrees off the way,
+   so a big turn is made at 30 degrees a second or less (a U-turn: about 6 s).
+   That is the 1998 rate; no faster one is invented. (A faster feel within the
+   rules would be the drive's choice of keys: keeping the gas held through a
+   turn gives 60 a second, on a wide circle, about 4 units across. Simon's call.)
+   **Grim Mouse's `sg.bone_drive` and `na.bone_drive` are retired:** mouse.lua
+   links the game's own `bone_wagon` object (sg, na, tr, lb, bv, bd; Glottis in
+   at) to the wagon's actor, so a tap on the parked wagon gets Manny in wherever
+   it is (the game itself moves the object's use point when he gets out); the
+   sg.lua and na.lua patches no longer touch bone_drive. Saves made with them
+   keep theirs, with no outline. Proven: out in sg, back in by a tap on the
+   wagon, drive into na and about it, back to sg, into tr (Manny gets out, as
+   the game has him), back in, and the game drives out (build/bench/w0..w13).
+   **Every scene:** the handler is the same in all six sets, so the drive is.
+   Proven in sg, na and tr; lb, bv and bd come later in Year 1 and weren't
+   reached on the bench.
 2. **Forklift** (de dillopede elevator, wc wine cellar:
    `forklift_button_handler`). 1998: ↑ forward, ↓ back (out of the shaft when
-   stuck), ← → turn, U or P dismount. Proposed: as the Bone Wagon (tap ground
-   ahead = ↑ and steering held until there, behind = ↓, tap the forklift = U).
-   Grim Mouse: invented `de.forkdrive` and `wc.forkdrive`.
+   stuck), ← → turn, U or P dismount.
+   **Built (15 Nov 2026):** as the Bone Wagon, at the forklift's own scale
+   (0.4 units a second, 30 degrees a second). Its arrows are simpler: Left
+   always turns it left. A tap on the forklift = U; stuck in the shaft, any tap
+   = ↓ (back out). Grim Mouse's invented `de.forkdrive` and `wc.forkdrive` are
+   gone (and the wc.lua patch with them: wc.lua is the 1998 one): the game's own
+   `wc.forklift` / `de.forklift` are linked to the forklift and stay live
+   wherever it's drawn, because `de.forklift_actor.monitor_objects` flips the
+   forklift's and the lever's touchable flags by which is nearer Manny (the
+   keyboard's hot object). Found on the way: Grim Mouse's `Set.update_hotspots`
+   loop is now guarded (an object with no range or hotspot stopped it). Proven
+   (build/for-simon/grim14.gsv): get on by a tap, drive into the elevator (a way
+   out), about the elevator, back out into the cellar, a tap on the forklift
+   (build/bench/f4-on, f5-*, f6-b, f7-b, f8-back, f9-*).
 3. **The ship's engine** (ei engine room: `engineButtonHandler`). 1998: ↑
    ahead, ↓ reverse, ← port, → starboard (each press runs one `drive_ship`),
-   U, P or I let go of the controls. Proposed: tap the left lever = ←, the
-   right lever = →, the dial or the forward half of the controls = ↑, the
-   back half = ↓, tap Manny = U (let go). Grim Mouse: five screen regions
-   (sxfwd, sxbwd, sxleft, sxright, sxcancel).
+   U, P or I let go of the controls.
+   **Built (15 Nov 2026), keeping its levers:** each tap is one press, by where
+   the game's own lever objects are drawn. Manny stands over the console, so the
+   taps are on his hands: the left lever = → (the script's "starboard" raises
+   the left lever, `mn_levers_left_up`), the right lever = ← ("port",
+   `mn_levers_right_up`): the proposal had these the other way round; the dials
+   above = ↑ (both levers ahead), the console below the levers = ↓ (both back),
+   anywhere else = U (let go). Grim Mouse's five regions (sxfwd, sxbwd, sxleft,
+   sxright, sxcancel) are gone. Proven (build/for-simon/grim16.gsv):
+   build/bench/e1-up-a/b, e2-left-lever, e3-right-lever, e4-down, e5-letgo.
 4. **The crane** (ew end of the world: `ew.buttonHandler`). 1998: ← → move
    the crane along its track (held), ↑ raise, ↓ lower, U or P climb out.
-   Proposed: tap a point along the track = ← or → held until the crane is
-   over it; tap the hook while it's up = ↓, while it's down = ↑; tap Manny =
-   U. Grim Mouse: six screen regions that also raise and lower on arrival
-   (one gesture doing two things: dropped).
+   **Built (15 Nov 2026):** a tap near the track (the game's own 29
+   `ew.crane_points`, within 70 px on screen) is where to stop: ← (towards the
+   crusher) or → held, let go a point early so the run ends on it (the game's
+   `move_left` checks the key between points; its runs are cut scenes, which the
+   drive doesn't count against itself). Lowered, the game raises it first
+   (`raise_crane_and_move`). A tap on the crane = ↓, lowered ↑; a tap away from
+   the track = U (climb out; in between the game says no). Grim Mouse's six
+   regions and its `move_to_left/right` and `move_left/right` overrides are
+   gone: the 1998 crane scripts run. Proven (build/for-simon/grim15.gsv): along
+   the track, lowered in between, back to the conveyor (raised first), climbed
+   out (build/bench/c1-b, c2-lowered, c3-b, c4-out, c5-final-move).
 5. **Glottis's ride through the albinizod tunnel** (at: `at_bw_handler`).
    1998: ↑ ↓ drive (held), U the ledge (or use what's in hand), P or I
-   toggle the remote, E look, 1-9 = and - the inventory hot keys. Proposed:
-   tap along the tunnel = ↑ or ↓ held until there; tap the ledge = U; tap
-   Manny = I (the remote). Grim Mouse: linear mode and a "sxcat" region.
+   toggle the remote, E look, 1-9 = and - the inventory hot keys.
+   **Built (15 Nov 2026):** a tap is snapped to Glottis's own line along the
+   tunnel (nearest on screen), ↑ (forward) or ↓ held until he's there; the game
+   stops him short of the albinizod itself (blocked). The wagon hides the tunnel
+   behind it, so a tap beside it, up the tunnel, backs up. A tap on the wagon =
+   I (the remote), on the catwalk (the game's own `at.ledge`: Grim Mouse's
+   "sxcat" region is now its outline) = U. Grim Mouse's linear mode and
+   `at.linearMove*` are no longer reached (mouse.lua's are gone). Proven
+   (build/for-simon/grim17.gsv): build/bench/t2-b, t5-fwd, t5-back, t6-catwalk.
+
+**The four saves** (build/for-simon, slots 14-17), each from a new game, then
+the game's own developer means, as grim13 was: grim14 "Forklift", the jump
+`winecellar` (LucasArts' own, which sets the Year 2 state it needs), then out to
+the elevator and back by pointer (the jump leaves the forklift dead until the
+cellar is entered again); grim15 "Crane", the crane's own entry
+(`ew.operate_crane`, what the cabin door's walkOut runs: there's no jump near
+it); grim16 "Ship engine", the jump `hitsquad` (its cut scene skipped), then a
+tap on the levers; grim17 "Tunnel ride", the jump `albinizod`. Inventory and
+earlier years are whatever a new game has: they're for trying the vehicles,
+not for playing on. developerMode comes from the engine's settings on every
+load, so the saves carry none.
 
 ## Pushing, crawling, climbing (one axis)
 
@@ -190,16 +254,13 @@ P pick up, E examine, I inventory, Esc override.
 - Line 16, the fire extinguisher: **press and hold to spray**, lift to stop.
 - Line 17, the rope: **drop is left out**; throwing is the puzzle.
 - Lines 19-21, the "any key" scenes: **a tap anywhere** moves on.
-- Vehicles (1-5): **not decided yet**. Simon hasn't played the game and wants to try the driving
-  first, from a save at the Bone Wagon.
-  The Bone Wagon's "tap where to go" is built for him to try (line 1, 15 Nov 2026).
+- Vehicles (1-5): **tap where to go** (Simon tried the Bone Wagon: "It's not a
+  driving experience, the point and click just works"); the ship's engine keeps
+  its levers. All five built (15 Nov 2026). Open: the Bone Wagon's turning is
+  slow at the 1998 rate (line 1); whether to keep the gas held through turns.
 
 ## For Simon to decide (as proposed)
 
-- The vehicle rule (lines 1-5): "tap where to go, the game's own arrows are
-  held until it's there". One rule for the Bone Wagon, the forklift and the
-  crane; the ship's engine stays on its levers because that's what the
-  player works in that scene.
 - Line 16, press and hold: the only hold gesture in Grim. It is what the
   original asked of the player (hold U), but it's new to PointyClicky.
 - Line 17, the rope's P.

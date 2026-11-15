@@ -93,6 +93,31 @@ pc_link_actors = function(arg1)
         end
         local1, local2 = next(arg1, local1)
     end
+    pc_link_vehicles(arg1)
+end
+-- PointyClicky Edition (15 Nov 2026): the vehicles are the game's own objects,
+-- found where the vehicle is drawn. The game itself moves these objects' use
+-- points to where the vehicle was left (sg.leave_BW, the forklift's dismount),
+-- so with the link a tap on the parked Bone Wagon or forklift gets Manny in,
+-- wherever it is. (Grim Mouse's invented sg/na.bone_drive and de/wc.forkdrive
+-- are gone; saves made with them keep theirs, with no outline.)
+pc_link_vehicles = function(arg1)
+    local local1
+    if type(arg1.bone_wagon) == "table" and arg1.bone_wagon.hotspot_id then
+        local1 = bonewagon
+        if arg1 == at then
+            local1 = glottis
+        end
+        if type(local1) == "table" and local1.hActor then
+            LinkHotspotActor(arg1.bone_wagon.hotspot_id, local1.hActor)
+        end
+    end
+    -- (the forklift is live wherever it's drawn: de.forklift_actor.monitor_objects
+    -- flips its touchable flag and the lever's by which is nearer Manny, which
+    -- picks the keyboard's hot object, not what a pointer may touch)
+    if type(arg1.forklift) == "table" and arg1.forklift.hotspot_id and de.forklift_actor.hActor then
+        LinkHotspotActor(arg1.forklift.hotspot_id, de.forklift_actor.hActor, TRUE)
+    end
 end
 Set.update_hotspots = function(arg1) -- line 69
     local local1, local2
@@ -101,8 +126,11 @@ Set.update_hotspots = function(arg1) -- line 69
     local1, local2 = next(arg1, nil)
     ActivateHotspot(-1, FALSE)
     while local1 do
+        -- (PointyClicky Edition: a touchable table with no range or hotspot,
+        -- as the wine cellar has, stopped this loop with an error, and every
+        -- object after it in the set stayed dead: the forklift, for one)
         if type(local2) == "table" then
-            if local2.touchable and local2.range > 0 then
+            if local2.touchable and local2.hotspot_id and type(local2.range) == "number" and local2.range > 0 then
                 ActivateHotspot(local2.hotspot_id, TRUE)
             end
         end
@@ -662,47 +690,6 @@ if not al.dummy_door then
     al.dummy_door:make_untouchable()
 end
 pc_rename(al.ga_door_obj, "/altxa01/big door")
-at.mouseSpecial = function(arg1, arg2, arg3) -- line 628
-    if arg2 == "sxcat" and arg3 > 0 then
-        start_script(at.ledge.use)
-    end
-end
-at.linearMovePlus = function(arg1, arg2, arg3) -- line 633
-    if arg3 == 2 and manny.is_holding then
-        start_script(Sentence, "use", manny.is_holding)
-    else
-        stop_script(at.drive_forward)
-        while glottis:getpos().y < arg2 and cutSceneLevel <= 0 do
-            if find_script(at.drive_backward) == nil then
-                start_script(at.drive_backward)
-            else
-                break_here()
-            end
-        end
-        if find_script(at.drive_backward) then
-            stop_script(at.drive_backward)
-        end
-        glottis:freeze()
-    end
-end
-at.linearMoveMinus = function(arg1, arg2, arg3) -- line 651
-    if arg3 == 2 and manny.is_holding then
-        start_script(Sentence, "use", manny.is_holding)
-    else
-        stop_script(at.drive_backward)
-        while glottis:getpos().y > arg2 and cutSceneLevel <= 0 and not glottis:find_sector_name("close_enough") do
-            if find_script(at.drive_forward) == nil then
-                start_script(at.drive_forward)
-            else
-                break_here()
-            end
-        end
-        if find_script(at.drive_forward) then
-            stop_script(at.drive_forward)
-        end
-        glottis:freeze()
-    end
-end
 at.ledge.use_immediate = TRUE
 bd.extinguisher.use_immediate = TRUE
 start_ext = function() -- line 671
@@ -834,40 +821,7 @@ cy.offbelt.use = function(arg1) -- line 776
     start_script(cy.jump_off_conveyor, cy)
 end
 pc_rename(dd.terry_obj, "/ddtxa00/terry")
-if not de.forkdrive then
-    de.forkdrive = Object:create(de, "/detxb00/forklift", 0, 100, 0, { range = 0.100000001 })
-end
-de.forkdrive.active_driving = TRUE
-de.forkdrive.use = function(arg1) -- line 782
-    PrintDebug("im being used")
-    if manny.is_driving then
-        start_script(de.forklift_actor.dismount, de.forklift_actor)
-    else
-        start_script(de.forklift_actor.mount, de.forklift_actor)
-    end
-end
-de.forkdrive.lookAt = function(arg1) -- line 790
-    manny:say_line("/wcma007/")
-end
-de.forkdrive.pickUp = function(arg1) -- line 793
-    manny:say_line("/wcma008/")
-end
 pc_rename(dp.anchor, "/dptxa00/anchor")
-ei.mouseSpecial = function(arg1, arg2, arg3) -- line 797
-    if cutSceneLevel <= 0 and arg3 > 0 then
-        if arg2 == "sxleft" then
-            single_start_script(ei.drive_ship, ei, "starboard")
-        elseif arg2 == "sxright" then
-            single_start_script(ei.drive_ship, ei, "port")
-        elseif arg2 == "sxfwd" then
-            single_start_script(ei.drive_ship, ei, "forward")
-        elseif arg2 == "sxbwd" then
-            single_start_script(ei.drive_ship, ei, "reverse")
-        elseif arg2 == "sxcancel" then
-            single_start_script(ei.drop_controls, ei)
-        end
-    end
-end
 pc_rename(ei.dp_button, "/eitxa00/button")
 pc_rename(ei.op_button, "/eitxa01/button")
 pc_rename(ei.intruments, "/eitxa02/instruments")
@@ -878,107 +832,6 @@ pc_rename(ei.spot, "/eitxa06/spot")
 pc_rename(ei.glottis_obj, "/eitxa07/Glottis")
 pc_rename(ei.op_door, "/eitxa07/door")
 pc_rename(ei.il_door, "/eitxa08/hatch")
-ew.crane_actor.is_left = function(arg1) -- line 822
-    return arg1.cur_point >= ew.crane_points.num_points - 1
-end
-ew.crane_actor.is_right = function(arg1) -- line 825
-    return arg1.cur_point == 0
-end
-ew.crane_actor.move_left = function(arg1) -- line 828
-    local local1 = 0
-    stop_script(arg1.move_right)
-    if not sound_playing("crane.imu") then
-        start_sfx("crane.imu")
-    else
-        fade_sfx("crane.imu", 500, arg1.volume)
-    end
-    while get_generic_control_state("TURN_LEFT") or find_script(ew.crane_actor.move_to_left) and local1 < ew.crane_points.num_points do
-        local1 = arg1.cur_point + 1
-        if local1 < ew.crane_points.num_points then
-            arg1:move_to_point(local1)
-        end
-    end
-    if sound_playing("crane.imu") then
-        fade_sfx("crane.imu", 500, 0)
-    end
-end
-ew.crane_actor.move_right = function(arg1) -- line 846
-    local local1 = 0
-    stop_script(arg1.move_left)
-    if not sound_playing("crane.imu") then
-        start_sfx("crane.imu")
-    else
-        fade_sfx("crane.imu", 500, arg1.volume)
-    end
-    while get_generic_control_state("TURN_RIGHT") or find_script(ew.crane_actor.move_to_right) and local1 >= 0 do
-        local1 = arg1.cur_point - 1
-        if local1 >= 0 then
-            arg1:move_to_point(local1)
-        end
-    end
-    if sound_playing("crane.imu") then
-        fade_sfx("crane.imu", 500, 0)
-    end
-end
-ew.crane_actor.move_to_right = function(arg1, arg2) -- line 864
-    if ew.crane_down and not arg1:is_right() then
-        single_start_script(ew.raise_crane, ew)
-        wait_for_script(ew.raise_crane)
-        cutSceneLevel = 0
-    end
-    while not arg1:is_right() do
-        if find_script(ew.crane_actor.move_right) == nil then
-            start_script(ew.crane_actor.move_right, ew.crane_actor)
-        else
-            break_here()
-        end
-    end
-    single_start_script(ew.crane_actor.do_action, arg1, arg2)
-end
-ew.crane_actor.do_action = function(arg1, arg2) -- line 879
-    if arg2 == 1 then
-        ew:exit_crane()
-    elseif arg2 == 2 then
-        ew:raise_crane()
-    elseif arg2 == 3 then
-        ew:lower_crane()
-    end
-end
-ew.crane_actor.move_to_left = function(arg1, arg2) -- line 888
-    if ew.crane_down and not arg1:is_left() then
-        single_start_script(ew.raise_crane, ew)
-        wait_for_script(ew.raise_crane)
-        cutSceneLevel = 0
-        InteractMode(0)
-    end
-    while not arg1:is_left() do
-        if find_script(ew.crane_actor.move_left) == nil then
-            start_script(ew.crane_actor.move_left, ew.crane_actor)
-        else
-            break_here()
-        end
-    end
-    single_start_script(ew.crane_actor.do_action, arg1, arg2)
-end
-ew.mouseSpecial = function(arg1, arg2, arg3) -- line 904
-    if cutSceneLevel <= 0 and arg3 > 0 then
-        action = 1
-        if arg2 == "sxrup" or arg2 == "sxlup" then
-            action = 2
-        elseif arg2 == "sxrdn" or arg2 == "sxldn" then
-            action = 3
-        end
-        if arg2 == "sxright" or arg2 == "sxrup" or arg2 == "sxrdn" then
-            stop_script(ew.crane_actor.move_to_right)
-            stop_script(ew.crane_actor.move_right)
-            single_start_script(ew.crane_actor.move_to_left, ew.crane_actor, action)
-        elseif arg2 == "sxleft" or arg2 == "sxlup" or arg2 == "sxldn" then
-            stop_script(ew.crane_actor.move_to_left)
-            stop_script(ew.crane_actor.move_left)
-            single_start_script(ew.crane_actor.move_to_right, ew.crane_actor, action)
-        end
-    end
-end
 gs.ga_door.comeOut = function(arg1) -- line 923
 end
 pc_rename(hl.raoul_obj, "/hltxa00/Raoul")
@@ -1031,24 +884,6 @@ mf.wound.use_immediate = TRUE
 if not mf.wound.touchable then
     mf.wound:make_touchable()
 end
-if not na.bone_drive then
-    na.bone_drive = Object:create(na, "/natxb00/Bone Wagon", 0, 100, 0, { range = 0.100000001 })
-end
-na.bone_drive.active_driving = TRUE
-na.bone_drive.use_immediate = TRUE
-na.bone_drive.use = function(arg1) -- line 972
-    if manny.is_driving then
-        single_start_script(sg.leave_BW, sg)
-    else
-        na.bone_wagon:use()
-    end
-end
-na.bone_drive.pickUp = function(arg1) -- line 979
-    na.bone_wagon:pickUp()
-end
-na.bone_drive.lookAt = function(arg1) -- line 982
-    na.bone_wagon:lookAt()
-end
 pc_rename(nq.meche_obj, "/nqtxa10/Meche")
 nq.inv_name = "lsa_photo"
 pc_rename(op.anchor, "/optxa00/anchor")
@@ -1060,24 +895,6 @@ pf.mouseSpecial = function(arg1, arg2, arg3) -- line 990
     end
 end
 ri.photo.inv_name = "celso_photo"
-if not sg.bone_drive then
-    sg.bone_drive = Object:create(sg, "/sgtxb00/Bone Wagon", 0, 100, 0, { range = 0.100000001 })
-end
-sg.bone_drive.use_immediate = TRUE
-sg.bone_drive.active_driving = TRUE
-sg.bone_drive.use = function(arg1) -- line 999
-    if manny.is_driving then
-        single_start_script(sg.leave_BW, sg)
-    else
-        sg.bone_wagon:use()
-    end
-end
-sg.bone_drive.pickUp = function(arg1) -- line 1006
-    sg.bone_wagon:pickUp()
-end
-sg.bone_drive.lookAt = function(arg1) -- line 1009
-    sg.bone_wagon:lookAt()
-end
 pc_rename(sh.glottis_obj, "/shtxa01/glottis")
 pc_rename(sh.flower_trail_obj, "/shtxa02/master flower trail")
 pc_rename(sh.te_ladder, "/shtx010/ladder")
@@ -1233,23 +1050,6 @@ end
 vo.dummy_axe.use_immediate = TRUE
 vo.dummy_axe.use = function(arg1) -- line 1161
     single_start_script(vo.drop_axe, vo)
-end
-if not wc.forkdrive then
-    wc.forkdrive = Object:create(wc, "/wctxb00/forklift", 0, 100, 0, { range = 0.100000001 })
-end
-wc.forkdrive.active_driving = TRUE
-wc.forkdrive.use = function(arg1) -- line 1166
-    if manny.is_driving then
-        start_script(de.forklift_actor.dismount, de.forklift_actor)
-    else
-        start_script(de.forklift_actor.mount, de.forklift_actor)
-    end
-end
-wc.forkdrive.lookAt = function(arg1) -- line 1173
-    manny:say_line("/wcma007/")
-end
-wc.forkdrive.pickUp = function(arg1) -- line 1176
-    manny:say_line("/wcma008/")
 end
 -- PointyClicky Edition (14 Nov 2026): Manny finds, the cursor confirms.
 -- Every frame the game's own Head_Control picks hot_object, the thing
