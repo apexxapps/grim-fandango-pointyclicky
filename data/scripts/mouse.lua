@@ -765,7 +765,25 @@ pc_rename(cn.bogen_obj, "/cntxa00/bogen")
 pc_rename(cn.gamblers, "/cntxa01/gamblers")
 pc_rename(cn.croupier_obj, "/cntxa02/croupier")
 pc_rename(cn.pass, "/cntxa03/pass")
+-- PointyClicky Edition (15 Nov 2026), Grim Mouse's crash at the computer
+-- (its issue #48, "Domino's" computer: Copal's, Year 1). A hover queues
+-- draw_choices; the click's make_selection runs ahead of it and, when the
+-- reply doesn't change, stop_interface purges the screen's primitives in the
+-- same frame, so the queued draw_choices hits a purged one (ChangePrimitive
+-- asserts). stop_interface clears interface_active first: after that a
+-- leftover draw_choices has nothing to draw, and a late pointer event nothing to do.
+if not pc_co_draw_choices then
+    pc_co_draw_choices = co.computer.draw_choices
+end
+co.computer.draw_choices = function(arg1)
+    if co.computer.interface_active then
+        pc_co_draw_choices(arg1)
+    end
+end
 co.computer.mouseSelect = function(arg1, arg2, arg3) -- line 753
+    if not co.computer.interface_active then
+        return
+    end
     if arg2 > 0 and co.computer.selection ~= arg2 - 1 then
         start_sfx("cpuBeep2.WAV")
     end

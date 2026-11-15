@@ -189,6 +189,17 @@ point where you want to go or what you want to work, and click.
    was reachable by the pointer at least once.
 4. **Known faults**: Grim Mouse's crash at Domino's computer (#48), its
    inventory close slip, the `vd.lua` merge, all fixed and covered by the run.
+   **#48 fixed (15 Nov 2026).** The computer is Copal's (co, Year 1: the
+   auto-reply), not Domino's. Cause: a hover queues `draw_choices`, the click's
+   `make_selection` runs ahead of it, and when the reply doesn't change
+   `stop_interface` purges the screen's primitives in that same frame, so the
+   queued `draw_choices` hits a purged one (`ChangePrimitive` asserts).
+   Reproduced on the bench (second visit, same reply: the assertion); fixed in
+   mouse.lua (`draw_choices` and the pointer do nothing once
+   `interface_active` is off); after it, no crash, and saving and loading
+   inside the computer and choosing reply 5 work (build/bench/j2-*). The
+   "corrupt save" in the report was stock ResidualVM 0.2.0 failing to load a
+   Grim Mouse save (no Grim Mouse opcodes there: `obj->value.f`), not damage.
 5. **Simon on the phone**: a scene-by-scene sign-off sheet, Year 1 to Year 4.
 
 ## Phase 6: release
