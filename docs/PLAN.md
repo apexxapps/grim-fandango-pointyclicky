@@ -198,8 +198,8 @@ point where you want to go or what you want to work, and click.
    and clicking (no keys). It needs a Grim state reader, which also gives
    Grim a walkthrough and NudgeAI hints.
    **In progress (docs/proof.md):** played by pointer from a new game, Year 1
-   through El Marrow to the Petrified Forest so far (15 Nov 2026); twelve
-   fixes on the way (one dead end: Copal's computer kept the pointer after it
+   through El Marrow and the Petrified Forest to the tree pump so far (15 Nov
+   2026); thirteen fixes on the way (one dead end: Copal's computer kept the pointer after it
    closed), one question for Simon.
 3. **Coverage**: during that run, every object the game ever made touchable
    was reachable by the pointer at least once.

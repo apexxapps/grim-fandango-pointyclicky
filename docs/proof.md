@@ -1,7 +1,9 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
 *Started 15 Nov 2026. In progress: Year 1, from a new game through El Marrow
-to the Petrified Forest. Not yet at the credits.*
+and the Petrified Forest's heart to the tree pump (the Bone Wagon's first
+ride done). Not yet at the credits. Resume from save 87 (build/bench/saves/
+grim87.gsv: in the tree pump room, holding the wheelbarrow).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -97,6 +99,13 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     roof, so every tap on the roof walked Manny at the pigeons. Cut down to the
     flock as it sits on each angle. Shots 268-271.
 
+13. **sp, the spider web clearing: no way back out.** Both of Grim Mouse's
+    'out' walk paths walked Manny to (-5.70, 6.62), a point in the signpost
+    fork's own coordinates, outside this set, so he stopped short and never
+    reached the game's way out (`sp.sg_door`, the sg_box sector at -0.86,
+    -0.48). Pointed at the door's own position. Shots 329-331 (stuck, then out
+    to the fork).
+
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces; a re-run must
 keep these hand fixes, as it keeps the ones in outlines-review.md. Check
 before re-running.)
@@ -186,3 +195,29 @@ before re-running.)
 - **al, hq.** The blue eye in the alley (311). The eggs on Salvador (313). The
   mouthpiece on Eva (317): Manny's papers, cut scenes (318).
 - **The Petrified Forest** (319). Save 80.
+
+### Year 1: the Petrified Forest
+
+- **sm, sg.** Down the path ('next'): Glottis rips out his heart and throws it
+  into the forest (320-321). Save 81.
+- **sp, the spider web.** The path at the fork (322). The pile of bones: Manny
+  takes one (325); a tap on the web with it: the bone sticks (326); coat, the
+  scythe, a tap on the web: the heart flies out (327-328). Save 82. Back out
+  (fix 13, 329-331).
+- **sg.** The heart on the ground by Glottis (332); held, it can't go back in
+  the coat ("put away" is refused); a tap on Glottis puts it back in (335-336).
+  The Copal/Domino cut scene; in the Bone Wagon (337). Save 84.
+- **The Bone Wagon (moment 1).** A tap on the way to the tree pump: driven
+  there by the game's route (338). Save 85.
+- **tr, the tree pump.** The wheelbarrow, tapped where it's drawn (the
+  outline over the whole rails is not used while the barrow is live: 339-340).
+  Pushed and pulled along the rails by taps (341-343). Save 87. **Here the run
+  stopped (context budget).** The puzzle: each hose sets its pump's beat when
+  the barrow leaves it (tr.hose_watch), the beat ticks 1-4 every 500 ms, the
+  barrow moves 0.4 units a second and the hoses are about 0.38 apart, so two
+  hoses crossed in one go never match; the barrow has to stop between hoses
+  and go on at the right moment. Order along the push: hose_box4 (pump1),
+  hose_box3 (pump2), hose_box2 (pump3), hose_box1 (pump4); solved when pump1 =
+  pump2, pump3 = pump4 and the pairs differ. Next: stop between box4 and box2
+  and go over box3 until pump2 = pump1, then over box2 and work box1 at the
+  front until pump4 = pump3; then the switch, Glottis up the tree, the switch.
