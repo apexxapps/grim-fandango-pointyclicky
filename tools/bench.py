@@ -10,6 +10,7 @@ grim-mouse.lab) and ScummVM's grim-patch.lab. The script is a list of steps:
   {"wait": 2.5}                      seconds
   {"key": "i"} / {"key": "esc"} / {"key": "left"}
   {"move": [x, y]} / {"click": [x, y], "button": 1}
+  {"press": [x, y]} / {"release": [x, y]}   the left button held down / let go
   {"shot": "name"}                   -> build/bench/name.png
   {"save": 1} / {"load": 1}          the engine's own save / load, slot n
 Everything is written under build/bench (git-ignored). BENCH_DEBUG=1 draws
@@ -108,6 +109,9 @@ def run(bench, steps):
             print('move', bench.call('move', x=st['move'][0], y=st['move'][1]))
         elif 'click' in st:
             print('click', bench.call('click', x=st['click'][0], y=st['click'][1], button=st.get('button', 1)))
+        elif 'press' in st or 'release' in st:
+            xy = st.get('press') or st.get('release')
+            print('button', bench.call('button', x=xy[0], y=xy[1], down=1 if 'press' in st else 0))
         elif 'save' in st:
             print('save', bench.call('save', slot=st['save'], name=st.get('name', 'bench')))
         elif 'load' in st:

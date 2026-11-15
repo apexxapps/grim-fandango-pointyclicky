@@ -1,6 +1,6 @@
 # The moments the game takes the controls: proposals for Simon
 
-*For Simon to approve, line by line (15 Nov 2026). Built: the vehicles (lines 1-5).*
+*For Simon to approve, line by line (15 Nov 2026). Built: all 24 (vehicles 1-5; 6-24 the same day). Saves to try each: build/for-simon/README.md.*
 
 **What counts as a moment.** A scene whose script installs its own key handler
 (`system.buttonHandler = ...` in the game's scripts) instead of the normal
@@ -154,23 +154,48 @@ load, so the saves carry none.
    the path = ↑ or ↓ held until there; tap the wheelbarrow or Manny = U (let
    go). Grim Mouse: linear mode plus a "go" region over the whole top of the
    screen for letting go.
+   **Built (15 Nov 2026)** (HotspotMan::momentEvent, as the vehicles): the tap is
+   placed on Manny's line (his facing, through where he stands, nearest on screen)
+   and ↑ or ↓ is held until he's there or can go no further (the game's own
+   wb_push_lim / wb_pull_lim). The wheelbarrow is the game's tr.wheelbarrow, found
+   where its tr.barrow actor is drawn (linked by mouse.lua); a tap on it or on Manny
+   = U. Grim Mouse's linear mode and its tr.linearMove* are retired. Proven
+   (build/for-simon/grim18.gsv): build/bench/m6-pickup, m6-push, m6-pull, m6-letgo.
 7. **The anchor room crawl** (ac: `drift_button_handler`). 1998: ↑ crawl
    forward, ↓ crawl back (held), E look at what Manny's facing, I "not now".
    Proposed: tap along the crawl = ↑ or ↓ held until there; two fingers = E.
+   **Built (15 Nov 2026):** as the wheelbarrow, along Manny's facing; the belt's
+   own current carries him back as in 1998. A tap at the anchor end crawls him into
+   the game's anchor walkOut (the Lamancha). Grim Mouse's ac.linearMove* retired.
+   Proven (grim19.gsv): build/bench/m7-start, m7-down2, m7-up5, m7-look, m7-fwd3
+   (the anchor, then the Lamancha cut scene).
 8. **Glottis hanging on the Lamancha** (gh: `drift_button_handler`). 1998: ↑ ↓
    along the hull (held), E look. Proposed: as the anchor room crawl.
+   **Built:** it is the same handler and the same crawl (gh's anchor door puts
+   Manny back on the ac belt under `drift_button_handler`), so line 7 covers it.
 9. **The conveyor chain** (cy: `cy.drift_button_handler`). 1998: ↑ climb
    up, ↓ climb down (held), E look, I "not now". Off the belt: walk into the
    game's jump box (`cy.jump_box.walkOut`). Proposed: tap the chain above or
    below Manny = ↑ or ↓ held until level; tap the floor beside the belt =
    the jump box's walkOut, as walking into it was. Grim Mouse: an invented
    "offbelt" object that calls the same jump.
+   **Built (15 Nov 2026), the chain:** the tap is placed on the chain (the game's
+   own cy.chain_drift_bottom to cy.chain_drift_top), ↑ or ↓ held until level; the
+   top and the bottom are the game's own ends (cv_door, end_drift_gracefully).
+   Proven (grim20.gsv): build/bench/m9-start, m9-part, m9-down, m9-up (over the top
+   into cv). Off the belt (the jump box) is the normal walk handler and still Grim
+   Mouse's cy.offbelt: not reached on the bench, left for the playthrough.
 10. **Ladders** (le ladder to the roof, sh and te ladders, si, at:
     `start_climb_ladder`, then the normal handler with `is_climbing`). 1998:
     ↑ climb up, ↓ climb down (held), stepping off at either end by itself.
     Proposed: tap the ladder above or below Manny = ↑ or ↓ held until he's
     level with the point. Grim Mouse: `climbTowards` (the same idea; it calls
     the climb scripts directly).
+    **Built (15 Nov 2026):** while `is_climbing` under the normal handler, a tap
+    on the ladder's line (straight up and down through Manny's middle) holds ↑ or ↓
+    until he's level (the game's own climb_actor_up/down step him); he steps off
+    at either end by himself. Grim Mouse's climbTowards and climb_actor_*_to
+    retired. Proven on sh's ladder (grim21.gsv): build/bench/m10-on, m10-up, m10-down.
 
 ## Working a machine close up
 
@@ -181,33 +206,71 @@ load, so the saves carry none.
     two fingers = E; a tap on the last visible row when more replies follow
     = ↓ (scrolls, as the key did); Skip = Esc. Grim Mouse: a 6-row dialogue
     list, so replies 7 to 10 can't be reached at all (a gap today).
+    **Built (15 Nov 2026):** the six rows are the game's own (co.computer.text, 40
+    px apart). Pointing at a row presses ↑ or ↓ until it's the selection; a tap
+    presses them and then U; a tap on the last row while more follow presses ↓ only
+    (the list scrolls), on the first row while the list is scrolled ↑ only. Each
+    press is held 100 ms, one at a time when the game's wait_for_joystick_release
+    is done. **Replies 7-10 are reachable.** Proven (grim22.gsv): build/bench/
+    m11-open, m11-hover, m11-reply10, m11-back, m11-chosen (reply 8 set, Manny leaves).
 12. **The roulette panel** (cf cafe office: `roulettePanelButtonHandler`).
     1998: U throw the magnet switch, E look, Esc close. Proposed: tap the
     switch = U, two fingers = E, Skip = Esc. Grim Mouse: "sxmagnet" and
     "sxcancel" regions.
+    **Built (15 Nov 2026):** a tap on the switch (Grim Mouse's sxmagnet outline,
+    kept as the switch's shape) = U; two fingers = E; Skip = Esc; elsewhere nothing.
+    Proven (grim23.gsv): build/bench/m12-panel, m12-look, m12-switch, m12-closed.
 13. **The ticket printer** (tp, from cn: `tpButtonHandler`). 1998: ← → move
     between the week, day and race dials and the print key, ↑ ↓ push the
     dial up or down, U or E look, Esc close. Proposed: tap the upper half of
     a dial = ← or → to it, then ↑; the lower half = the same, then ↓; tap
     the print key = to it, then ↓; Skip = Esc. Grim Mouse: seven regions
     that move Manny's hands and run the push scripts directly.
+    **Built (15 Nov 2026):** the dials' outlines are kept as shapes; a tap presses
+    ← or → (the shorter way round, as tp.move_left/right go) until the hands are on
+    that dial, then ↑ or ↓; the print key = to it, then ↓. Proven (grim24.gsv):
+    build/bench/m13-start, m13-week-up2 (week 03), m13-day-down, m13-print (ticket
+    printed, back at the track).
 14. **The vault door wheel** (vd: `vd.buttonHandler`). 1998: → turn
     clockwise, ← counter-clockwise, ↓ or Esc step back. Proposed: tap the
     wheel's right half = →, its left half = ←, Skip = Esc. Grim Mouse: the
     same as three regions (left and right swapped against the keys: check).
+    **Built (15 Nov 2026):** the wheel's right half = →, left half = ← (by the
+    close-up's outlines, or on the wide view by the game's own vd.wheel point),
+    held for as long as the finger is down (a tap is a short press: one 45-degree
+    turn before the door is drilled; after it, a press and hold spins the tumblers,
+    as holding the key did); Skip = Esc. Grim Mouse's direction was swapped and is
+    gone. Proven (grim25.gsv): build/bench/m14-wheel, m14-right, m14-left, m14-off.
+    Not proven on the bench: the drilled door's spin.
 15. **The broadaxe** (vo outer vault: `axeButtonHandler`). 1998: ← → turn
     (held), ↓ walk backwards (held), U drop the axe, P or Esc lower it, E
     look. Proposed: tap the floor = ← or → held until Manny's back is to the
     point, then ↓ held until he's there; tap the axe = U; two fingers = E;
     Skip = Esc. Grim Mouse: an invented "broadaxe" object (drop only).
+    **Built (15 Nov 2026):** a tap on the floor: ← or → held until his back is to
+    the point (the game's vo.turn_left/right), then ↓ held until he's there; a tap
+    on Manny = U (drop). Proven (grim26.gsv): build/bench/m15-turn, m15-backed,
+    m15-look, m15-drop. Grim Mouse's vo.dummy_axe is no longer reached.
 16. **The fire extinguisher** (bd beaver dam: `fireExtinguisherHandler`).
     1998: hold U to spray, let go to stop. Proposed: press and hold on the
     scene = U held, lift = U released. Grim Mouse: a tap toggles spraying.
+    **Built (15 Nov 2026), as decided:** with the extinguisher in hand in bd, a
+    press held (the app's hold, 0.4 s) is U held: the game's own
+    bd.extinguisher.use (Grim Mouse's toggle and start_ext are retired); lifting
+    lets U go, which the game's fireExtinguisherHandler hears. A quick tap is the
+    usual pointer (walk, look, objects). Proven (grim27.gsv): build/bench/
+    m16-holding, m16-spray, m16-stopped, m16-tapwalk.
 17. **The rope on the ledge** (le: `ledge_rope_button_handler`). 1998: U
     throw the rope, P drop it, E look at it, I the rope's own inventory.
     Proposed: tap where to throw = U, two fingers = E, tap Manny = I. **Open:**
     P (drop the rope) has no gesture under the rules. Simon to choose: tap
     the rope coil at Manny's feet, or leave P out (throwing is the puzzle).
+    **Built (15 Nov 2026), P left out as decided:** tap = U (throw), two fingers =
+    E, a tap on Manny = I. Found on the way: Grim Mouse's le.lua threw (or dropped)
+    the rope the moment it was picked up, so this handler was never reached; the
+    1998 pick-up is back (le.lua.patchr now carries only the two stop_walk fixes).
+    Proven (grim28.gsv): build/bench/m17-holding, m17-look, m17-throw (a miss: the
+    coral isn't tied).
 
 ## One key and it's over
 
@@ -216,12 +279,22 @@ load, so the saves carry none.
     the coat. Proposed: tap the ground = ↑ (flail); tap the wound = U; two
     fingers = E; tap Manny = I. Grim Mouse: "no walk" mode (any tap flails)
     and makes the wound touchable for good.
+    **Built (15 Nov 2026):** the wound's outline = U, Manny as drawn = I, elsewhere
+    ↑ (flail), two fingers = E. Proven (grim29.gsv): build/bench/m18-flail,
+    m18-look, m18-wound.
 19. **Getting up from the cold** (re rubamat exterior: `shiver_button_handler`).
     1998: any key gets Manny up. Proposed: a tap anywhere = U.
+    **Built (15 Nov 2026):** a tap anywhere = U. Found on the way: Grim Mouse's
+    re.lua got Manny up by itself at the end of the intro, so the moment never
+    came; re.lua is the 1998 one again (its patch held nothing else). Proven from
+    the game's own jump `plunge` (grim30.gsv): build/bench/m19-up.
 20. **The camera at the new headquarters** (nq: `camera_button_handler`).
     1998: any key leaves the camera. Proposed: a tap anywhere = U.
+    **Built (15 Nov 2026):** a tap anywhere = U. Proven (grim31.gsv): build/bench/m20-back.
 21. **The photo finish** (pf: `pfButtonHandler`). 1998: any key goes back.
     Proposed: a tap anywhere = U. (Grim Mouse: the same.)
+    **Built (15 Nov 2026):** a tap anywhere = U (Grim Mouse's pf.mouseSpecial
+    retired). Proven (grim32.gsv): build/bench/m21-back.
 
 ## Two scenes with their own hand-over
 
@@ -229,6 +302,9 @@ load, so the saves carry none.
     Manny grabs the lantern). 1998: ← or → hands Chepito over. Proposed: tap
     Glottis = → . Grim Mouse: a two-line pick ("lantern", "Glottis") drawn as
     a dialogue: a menu, so dropped.
+    **Built (15 Nov 2026):** a tap on Glottis as drawn = →; elsewhere nothing. The
+    lantern is grabbed by a normal tap on it. Proven (grim33.gsv): build/bench/
+    m22-grab, m22-handover, m22-after.
 
 ## Dialogue with its own keys
 
@@ -238,8 +314,17 @@ load, so the saves carry none.
     dialogue (point at a line, tap = choose), with a tap on the last visible
     line when more follow = ↓ (scrolls). Grim Mouse: "dxup"/"dxdown" calling
     the lift directly.
+    **Built (15 Nov 2026):** the four rows (as Grim Mouse lays the list out) are
+    the game's floors: a tap presses ↓ or ↑ until that floor is the current line,
+    then Enter; on the last row while more follow, ↓ only (the game puts the
+    current line at the top, so the list moves on three); just above the list ↑
+    (one back), just below ↓. Pointing doesn't move the line (each ↓ scrolls).
+    Proven (grim34.gsv): build/bench/m23-list, m23-scrolled, m23-scrolled2,
+    m23-chosen ("eight": Brennis's "sorry"), m23-up. Grim Mouse's arrow images
+    aren't drawn, so the way back above the list is unmarked: for Simon.
 24. **The poetry reading** (bi, `dlg_mic`): the normal dialogue keys under
     its own handler. Proposed: as every dialogue. Nothing new.
+    **Proven (15 Nov 2026)** (grim35.gsv): build/bench/m24-lines, m24-hover, m24-chosen.
 
 ## Not the player's controls at all
 

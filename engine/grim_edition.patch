@@ -505,7 +505,7 @@ index 0ac3cff..343d626 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..310a859 100644
+index f6552fb..8786612 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -912,7 +912,7 @@ index f6552fb..310a859 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1113,1120 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1113,1129 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -1897,8 +1897,15 @@ index f6552fb..310a859 100644
 +	case kMVault:
 +		// the wheel's right half turns it clockwise (Right), its left half back (Left),
 +		// for as long as the finger is down
-+		if (region != "sxleft" && region != "sxright")
-+			return true;
++		// (the close-up has the halves outlined; on the wider view, the wheel's
++		// own point, vd.wheel, is its middle)
++		if (region != "sxleft" && region != "sxright") {
++			int wx, wy;
++			if (!worldToScreen(luaPoint("vd.wheel.obj_x", "vd.wheel.obj_y", "vd.wheel.obj_z"), wx, wy) ||
++			    ABS(cursor.x - wx) > 120 || ABS(cursor.y - wy) > 120)
++				return true;
++			region = cursor.x >= wx ? "sxright" : "sxleft";
++		}
 +		_fingerKey = region == "sxright" ? Common::KEYCODE_RIGHT : Common::KEYCODE_LEFT;
 +		_fingerDown = true;
 +		_fingerRelease = false;
@@ -1943,7 +1950,7 @@ index f6552fb..310a859 100644
 +		int hit = outlineObjectAt(cursor, setup);
 +		if (hit > 0 && hit == (int)luaNumber("mf.wound.hotspot_id"))
 +			pressKey(Common::KEYCODE_u, 'u', "meadow: the wound, U");
-+		else if (onManny(this, cursor))
++		else if (onActor(getManny(), cursor))   // (as drawn: he lies in the flowers)
 +			pressKey(Common::KEYCODE_i, 'i', "meadow: on Manny, I");
 +		else
 +			pressKey(Common::KEYCODE_UP, 0, "meadow: Up (flail)");
@@ -1992,6 +1999,8 @@ index f6552fb..310a859 100644
 +
 +void HotspotMan::momentUpdate() {
 +	uint32 now = g_system->getMillis();
++	if (Actor *manny = getManny())
++		manny->_screenBoxWanted = true;   // (where he's drawn, for the moments' taps on him)
 +	// a press held back on the extinguisher: held long enough, it's a spray (U held)
 +	if (_fingerPending && now - _fingerTime >= kFingerTap) {
 +		_fingerPending = false;
