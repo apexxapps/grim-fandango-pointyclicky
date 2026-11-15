@@ -46,20 +46,18 @@ W, H = 640, 480
 # MARK: The game's files
 
 def extract(game, out):
-    """Every .lua and .set from the game's DATA LABs into out/."""
+    """Every .lua and .set the engine reads into out/: the DATA LABs, and the
+    1.01 update's DATA005.LAB over them (grimfiles.Game), as in the engine.
+    (Before 15 Nov 2026 this read DATA000-004 only, so ten scripts were the
+    1.0 versions the game never runs.)"""
     os.makedirs(out, exist_ok=True)
-    for lab in sorted(f for f in os.listdir(game) if re.match(r'(?i)data\d+\.lab$', f)):
-        d = open(os.path.join(game, lab), 'rb').read()
-        if d[:4] != b'LABN':
-            continue
-        _, n, nl = struct.unpack('<III', d[4:16])
-        names = d[16 + 16 * n:16 + 16 * n + nl]
-        for i in range(n):
-            no, off, size, _ = struct.unpack('<IIII', d[16 + 16 * i:32 + 16 * i])
-            name = names[no:names.index(b'\0', no)].decode('latin-1')
-            if name.lower().endswith(('.lua', '.set')):
-                with open(os.path.join(out, name.lower()), 'wb') as f:
-                    f.write(d[off:off + size])
+    g = grimfiles.Game(game)
+    for name in g.names('.lua') + g.names('.set'):
+        data = g.read(name)
+        dst = os.path.join(out, name.lower())
+        if not os.path.exists(dst) or open(dst, 'rb').read() != data:
+            with open(dst, 'wb') as f:
+                f.write(data)
 
 
 def decompile(raw, delua, out):
@@ -67,7 +65,7 @@ def decompile(raw, delua, out):
     for name in sorted(os.listdir(raw)):
         if name.endswith('.lua'):
             dst = os.path.join(out, name)
-            if not os.path.exists(dst):
+            if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(os.path.join(raw, name)):
                 r = subprocess.run([delua, os.path.join(raw, name)], capture_output=True, text=True, errors='replace')
                 with open(dst, 'w') as f:
                     f.write(r.stdout)

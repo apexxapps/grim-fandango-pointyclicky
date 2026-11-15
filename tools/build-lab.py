@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """Builds grim-pointyclicky.lab, the PointyClicky Edition's data for Grim Fandango.
 
-    python3 -I tools/build-lab.py [out.lab]      # default: build/grim-pointyclicky.lab
+    python3 -I tools/build-lab.py --game <grim folder> [out.lab]   # default: build/grim-pointyclicky.lab
+
+<grim folder> is the player's own copy (DATA000-004.LAB and gfupd101.exe, the
+1.01 update the engine reads DATA005.LAB from); GRIM_GAME in the environment
+does as well. Every .patchr is checked against the file the engine will
+read for it (the update's version where it has one): a patch that fits no
+such file would be skipped by the engine, so the build stops instead.
 
 Packs, in one LAB archive (the format of Grim's own DATA00x.LAB):
   data/lab/*       the 71 script/costume patches (.patchr, applied by the
@@ -17,11 +23,15 @@ Packs, in one LAB archive (the format of Grim's own DATA00x.LAB):
 Built on Grim Mouse, Tobias Pfaff's (2014-2016, GPL-2.0-or-later,
 https://github.com/tobiaspfaff/grim_mouse); see README.md and CREDITS.md.
 """
+import hashlib
 import os
+import re
 import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import grimfiles  # noqa: E402
 ROOT = os.path.join(HERE, '..')
 OUT = os.path.join(ROOT, 'build', 'grim-pointyclicky.lab')
 
@@ -83,10 +93,50 @@ def write_lab(path, entries):
             f.write(data)
 
 
+def check_patches(data_dir, game_dir):
+    """Each patch chain (x.patchr, x_1.patchr ...) must have one patch whose
+    target (size, md5 of the first 5000 bytes: engines/grim/patchr.cpp) is
+    the file the engine reads. Returns the problems, one line each."""
+    game = grimfiles.Game(game_dir)
+    chains = {}
+    for name in os.listdir(data_dir):
+        m = re.match(r'(.+?)(_\d+)?\.patchr$', name)
+        if m:
+            chains.setdefault(m.group(1), []).append(name)
+    bad = []
+    for target, patches in sorted(chains.items()):
+        orig = game.read(target)
+        if orig is None:
+            bad.append(f'{target}: not in the game')
+            continue
+        fits = []
+        for pn in patches:
+            head = open(os.path.join(data_dir, pn), 'rb').read(48)
+            size = struct.unpack('<I', head[28:32])[0]
+            fits.append(size == len(orig) and hashlib.md5(orig[:5000]).digest() == head[12:28])
+        if not any(fits):
+            bad.append(f'{target}: no patch fits the game\'s copy ({len(orig)} bytes, '
+                       f'from {os.path.basename(game.find(target).path)})')
+    return bad, len(chains)
+
+
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else OUT
+    args = sys.argv[1:]
+    game_dir = os.environ.get('GRIM_GAME')
+    if '--game' in args:
+        i = args.index('--game')
+        game_dir = args[i + 1]
+        del args[i:i + 2]
+    if not game_dir:
+        sys.exit('build-lab: give the game folder (--game <folder> or GRIM_GAME): '
+                 'every script patch is checked against it')
+    out = args[0] if args else OUT
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     data_dir = os.path.join(ROOT, 'data', 'lab')
+    bad, n = check_patches(data_dir, game_dir)
+    if bad:
+        sys.exit('build-lab: the engine would skip these patches:\n  ' + '\n  '.join(bad))
+    print(f'patches: all {n} fit the game\'s copy')
     entries = []
     for name in sorted(os.listdir(data_dir)):
         with open(os.path.join(data_dir, name), 'rb') as f:

@@ -16,3 +16,4 @@ co 0 cotx023   # outlines-review.md second pass: papers2 off the back wall (none
 tu 0 bdtx018   # outlines-review.md second pass: the extinguisher off the lobby door
 tu 3 bdtx018   # outlines-review.md second pass
 th 0 thtx093   # outlines-review.md second pass: the dressing-room exit off the backstage floor
+sg 1 sgtx050   # proof F16: the sign post, round the post as drawn (the game's point was outside)

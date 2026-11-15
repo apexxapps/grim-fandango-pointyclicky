@@ -18,6 +18,9 @@ every outline (grim_mouse_debug). BENCH_DEVEL=1 turns on the game's own
 developer mode (game_devel_mode: J asks for one of LucasArts' jump targets,
 Ctrl+E for a line of Lua, Ctrl+P runs <lab dir>/patch; the scripts' PrintDebug
 lines go to build/bench/scummvm.out), for reaching a scene to save in.
+BENCH_DEBUGFLAGS=patchr (or any of the engine's channels, comma-separated)
+logs that channel to build/bench/scummvm.out: patchr says which .patchr was
+applied to which file. A patch that fits no file is logged regardless.
 """
 import json
 import os
@@ -60,9 +63,11 @@ class Bench:
         env = dict(os.environ, PT_RIG_SOCKET=self.sock_path, PT_RIG_SPEED='1',
                    SDL_VIDEODRIVER='dummy', SDL_RENDER_DRIVER='software', SDL_AUDIODRIVER='dummy')
         self.log = open(os.path.join(self.out, 'scummvm.out'), 'w')
+        flags = ','.join(f for f in (('scripts' if os.environ.get('BENCH_DEVEL') else ''),
+                                     os.environ.get('BENCH_DEBUGFLAGS', '')) if f)
         self.proc = subprocess.Popen([binary, f'--config={ini}', f'--path={game}', '--savepath=' + os.path.join(self.out, 'saves'),
                                       f'--extrapath={labs}', '--renderer=software', '-d1']
-                                     + (['--debugflags=scripts'] if os.environ.get('BENCH_DEVEL') else []) + ['grim'],
+                                     + (['--debugflags=' + flags] if flags else []) + ['grim'],
                                      env=env, stdout=self.log, stderr=subprocess.STDOUT)
         self.sock, self.buf, self.n = None, b'', 0
         for _ in range(300):

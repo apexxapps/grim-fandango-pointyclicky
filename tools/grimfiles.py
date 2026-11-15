@@ -7,20 +7,30 @@ The formats follow ScummVM's engines/grim (lab.cpp, bitmap.cpp).
 import os
 import re
 import struct
+import zlib
 
 
 class Lab:
-    """One of the game's .LAB archives: names, offsets, sizes."""
+    """One of the game's .LAB archives: names, offsets, sizes. From a file, or
+    from bytes already in memory (the update's DATA005.LAB)."""
 
-    def __init__(self, path):
-        self.path = path
-        with open(path, 'rb') as f:
-            head = f.read(16)
-            if head[:4] != b'LABN':
-                raise ValueError(f'{path}: not a LAB')
-            _, n, nl = struct.unpack('<III', head[4:16])
-            dirb = f.read(16 * n)
-            names = f.read(nl)
+    def __init__(self, path, data=None):
+        self.path, self.data = path, data
+        if data is not None:
+            head, rest = data[:16], data[16:]
+        else:
+            with open(path, 'rb') as f:
+                head, rest = f.read(16), None
+        if head[:4] != b'LABN':
+            raise ValueError(f'{path}: not a LAB')
+        _, n, nl = struct.unpack('<III', head[4:16])
+        if rest is not None:
+            dirb, names = rest[:16 * n], rest[16 * n:16 * n + nl]
+        else:
+            with open(path, 'rb') as f:
+                f.seek(16)
+                dirb = f.read(16 * n)
+                names = f.read(nl)
         self.files = {}
         for i in range(n):
             no, off, size, _ = struct.unpack('<IIII', dirb[16 * i:16 * i + 16])
@@ -29,17 +39,81 @@ class Lab:
 
     def read(self, name):
         off, size = self.files[name.lower()]
+        if self.data is not None:
+            return self.data[off:off + size]
         with open(self.path, 'rb') as f:
             f.seek(off)
             return f.read(size)
 
 
+def update_files(path):
+    """The files inside LucasArts' 1.01 update (gfupd101.exe), by name, as
+    ScummVM reads it (engines/grim/update: packfile.cpp, mscab.cpp): a
+    cabinet behind a "1CNT" container whose bytes are scrambled by a table
+    from a seed, MSZIP blocks. The game's own DATA005.LAB is in it ("@@_",
+    for every language), and the engine reads it ahead of DATA000-004: ten
+    of the game's scripts (_system, al, at, bd ... th) are its versions."""
+    d = open(path, 'rb').read()
+    for at in (0x1c000, 0x21000, 0x23000, 0x24000):
+        if d[at:at + 4] == b'1CNT':
+            break
+    else:
+        raise ValueError(f'{path}: no 1CNT container')
+    v = struct.unpack('<I', d[at + 4:at + 8])[0]
+    table = []
+    for _ in range(256):
+        v = (0x343FD * v + 0x269EC3) & 0xffffffff
+        table.append((v >> 16) & 0x7fff)
+    body = bytearray(d[at + 8:])
+    for r, t in enumerate(table):   # each byte: XOR the low half, minus the high
+        tr = bytes(((b ^ (t & 0xff)) - (t >> 8)) & 0xff for b in range(256))
+        body[r::256] = body[r::256].translate(tr)
+    cab = bytes(body)
+    if cab[:4] != b'MSCF':
+        raise ValueError(f'{path}: no cabinet')
+    files_at = struct.unpack('<I', cab[16:20])[0]
+    nfolders, nfiles, flags = struct.unpack('<HHH', cab[26:32])
+    p, res_folder, res_data = 36, 0, 0
+    if flags & 4:
+        res_head, res_folder, res_data = struct.unpack('<HBB', cab[36:40])
+        p = 40 + res_head
+    folders = []
+    for _ in range(nfolders):
+        start, nblocks, comp = struct.unpack('<IHH', cab[p:p + 8])
+        if comp & 0xf != 1:
+            raise ValueError(f'{path}: not MSZIP')
+        out, q = bytearray(), start
+        for _ in range(nblocks):
+            clen, _ulen = struct.unpack('<HH', cab[q + 4:q + 8])
+            q += 8 + res_data
+            block = cab[q:q + clen]
+            q += clen
+            z = zlib.decompressobj(-15, zdict=bytes(out[-32768:]))
+            out += z.decompress(block[2:]) + z.flush()   # 'CK', then deflate
+        folders.append(bytes(out))
+        p += 8 + res_folder
+    files, p = {}, files_at
+    for _ in range(nfiles):
+        size, offset, folder = struct.unpack('<IIH', cab[p:p + 10])
+        end = cab.index(b'\0', p + 16)
+        name = cab[p + 16:end].decode('latin-1')
+        files[name] = folders[folder][offset:offset + size]
+        p = end + 1
+    return files
+
+
 class Game:
-    """Every DATA LAB of a Grim install; later LABs win, as in the engine."""
+    """Every DATA LAB of a Grim install, in the engine's order: the 1.01
+    update's DATA005.LAB (from gfupd101.exe) wins over DATA004 ... DATA000."""
 
     def __init__(self, folder):
         self.labs = [Lab(os.path.join(folder, f)) for f in sorted(os.listdir(folder))
                      if re.match(r'(?i)data\d+\.lab$', f)]
+        upd = [f for f in os.listdir(folder) if f.lower() == 'gfupd101.exe']
+        if upd:
+            for name, data in update_files(os.path.join(folder, upd[0])).items():
+                if re.match(r'(?i)(@@_|common/)?data\d+\.lab$', name):
+                    self.labs.append(Lab(f'{upd[0]}:{name}', data))
 
     def find(self, name):
         for lab in reversed(self.labs):

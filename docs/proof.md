@@ -1,9 +1,9 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
 *Started 15 Nov 2026. In progress: Year 1, from a new game through El Marrow
-and the Petrified Forest's heart to the tree pump (the Bone Wagon's first
-ride done; the pumps' left pair set). Not yet at the credits. Resume from save
-94 (build/bench/saves/grim94.gsv; see "Resume here" at the end).*
+and the Petrified Forest: the tree pump done, the sign planted, the key from the
+cave (lb). Not yet at the credits. Resume from save 102
+(build/bench/saves/grim102.gsv; see "Resume here" at the end).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -131,6 +131,12 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     before the fix): pulled, stops, stays (358); in a new game both scripts load
     (observer run). The crawl wasn't replayed (Year 2).
 
+16. **sg, setup 1 (sg_sgnha), the sign post (sgtx050).** The outline sat to the
+    right of the post (x 423-451); the game's own point for it (419,358, base
+    417,381) was outside it, so a tap on the post as drawn walked Manny up to it
+    and did nothing. Redrawn round the post (x 402-436, y 336-388); in hand.txt.
+    Shots 372 (the walk), 373-374 (taken up).
+
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
 Now **data/hotspots/hand.txt** lists every outline fixed by hand (set, setup,
@@ -140,16 +146,48 @@ lines. Every new hand fix needs its line there.)
 
 ## Tools items found on the way
 
-- **Ten script patches don't match the player's copy** of their script and
-  are skipped by the engine without a word (`PatchedFile::load` checks size and
-  md5 and returns false): _cut_scenes, _options, _system, al, at, bd, bk, de, rf,
-  th (data/lab/*.lua.patchr; the target sizes differ from the game's own files
-  and from ScummVM's grim-patch.lab versions; most likely ResidualVM-era
-  targets). So those Grim Mouse changes (and any edition fix in them) are not
-  in the game. The game played through al and rf by pointer regardless. To
-  check with Simon's copy: which of them carry something the edition needs.
-  (`--debugflags=patchr` prints nothing: the channel is still a bit flag, not
-  an id, as `scripts` was.)
+- **"Ten script patches don't match the player's copy": wrong, they all
+  apply (checked 15 Nov 2026, third session).** _cut_scenes, _options, _system,
+  al, at, bd, bk, de, rf and th are among the scripts LucasArts' 1.01 update
+  replaced: gfupd101.exe carries a DATA005.LAB (in a scrambled cabinet), and the
+  engine reads it ahead of DATA000-004 (engines/grim/update; the engine refuses to
+  start without gfupd101.exe, and the app keeps it: Trim.engineReads). Grim
+  Mouse's patches were made against those 1.01 scripts, so they fit. The check
+  that raised it, like tools/grimfiles.py and tools/inventory.py, read DATA000-004
+  only. Proven in the engine: a boot with `BENCH_DEBUGFLAGS=patchr` logs "Patch for
+  X successfully loaded" for all ten (59 patches at boot, the rest load with their
+  files; none skipped). So no player ever lost these patches, and nothing in
+  those scenes changes. None of the ten was ever edited by the edition (all as
+  imported in 1df957c): its moments are in mouse.lua and the engine.
+  What the ten do (Grim Mouse's changes, decompiled against the 1.01 scripts): at
+  switches the pointer mode around the tunnel ride's remote; de walks the forklift
+  with Actor.walkto and stops it nearer (0.05); bd waits for the coat to close
+  before the extinguisher and moves a beaver and a walk point; al makes the
+  alley's dummy door touchable while it's live; rf names the dish and makes the
+  nest touchable once the pigeons are gone; bk and th name the bottle and the
+  grinder for the coat, and th starts the snow machine's pickUp; _options keeps
+  the pointer mode across pause and the menus; _cut_scenes only renumbers lines.
+  **Made loud:** (1) the engine: `wrapPatchedFile` warns whenever a file has a
+  patch and none fits ("Grim: no patch fits al.lua (size 9079): it plays
+  unpatched!"), whatever the debug flags; proven with a lab whose al.lua.patchr
+  had a wrong target. (2) `--debugflags=patchr` (and every Grim channel) prints
+  again: `Debug::debug` asked for `channel | Info`, which names no channel since
+  channels became ids (debug.cpp, the same bug `scripts` had). (3) tools:
+  grimfiles.Game reads the update's DATA005.LAB as the engine does
+  (`update_files`), and build-lab.py now needs the game folder (`--game` or
+  GRIM_GAME) and stops if any patch fits no file the engine would read (all 70
+  fit; a spoiled target is caught). inventory.py reads the scripts the engine
+  runs too (it had been auditing the 1.0 versions of those ten). bench.py:
+  `BENCH_DEBUGFLAGS` turns on engine channels.
+  **Re-checked on the bench from Simon's saves (shots p1-*):** the tunnel ride
+  (17): forward to the albinizod (blocked), back up, the catwalk (U), Glottis on
+  the wagon (the remote, I). The forklift (14): on by a tap, into the elevator
+  (de), about it, back out to the cellar, off by a tap. The extinguisher (27):
+  the coat, one to the right, out; held, it sprays; lifted, it stops; a quick tap
+  walks. Two notes, not faults: a tap on the wagon's front legs, more than 1.5
+  units down the tunnel from it, drives there rather than working the remote
+  (tunnelTap's rule); and in save 14 Manny stands at the forklift's seat, so a
+  tap there is a tap on Manny (the coat): the forklift's body gets him on.
 - An observer run (developer mode) of a save made while holding the
   wheelbarrow drifted within seconds of loading, so its numbers weren't the
   proof game's; read state right after the load (`OBS_WAIT`).
@@ -278,33 +316,60 @@ lines. Every new hand fix needs its line there.)
   kept landing on pump1's beat or my TL region shows TR's strike (the tree
   shakes). Check first (see "Resume here").
 
-## Resume here (after the second session, 15 Nov 2026)
+- **tr, third session (15 Nov 2026), from save 94.** Which piston is which,
+  settled by an observer run of a save made on the way (save 95: beats pump1 4,
+  pump2 4, pump3 1, pump4 2) and by parking: on box2 the top-right piston stops
+  for a whole cycle. So TL = pump1, BL = pump2, TR = pump3, BR = pump4, as the
+  game's tree.cos chores name them (tr.hose_boxN = pumps 4..1). The barrow's own
+  point is on box2 between -0.169 and -0.051 along the track from where it
+  stood at save 95 (the hose strips from tr.set, crossed with Manny's track). By
+  taps: onto box2 (a pull of 0.11), then off it by a pull timed from TL's strike
+  (`trial.py 430 225 2 24 0.45 TL`; pump4 strikes about 1.1-1.3 s after TL, and
+  a pull leaves the hose some 0.35-0.5 s after the tap). The first try, at
+  TL+0.73, left just after BR struck (pump3 took the next beat); the second, at
+  TL+0.45, gave pump3 pump4's beat, and the game's go_abnormal ran at once: the
+  tree synched (360). Save 96. A tap on the barrow let go (361); a tap on the
+  control panel, the switch: off; Glottis climbs the tree (362-365); the switch
+  again: Glottis flung, the Bone Wagon gets its pogo sticks (366-368), back at
+  the fork (369). Save 97.
+- **sg, the sign** (fix 16). Manny got out of the Bone Wagon by a tap on it
+  (371), a tap on the post: uprooted and held (373-374). The northwest trail
+  (375-377): **na**, the clearing.
+- **na, the sign.** Planted with a **two-finger tap on the floor, sign in hand**
+  (question 1's binding: a held item used on nothing, here the sign's own use,
+  which plants it), first at a guess: it points at a passageway (378-380, 390).
+  Picked up by a tap, planted again. The spot is the game's
+  `na.rubacava_point` (-1.22, -0.21), within 0.6 (16 px from above); its place
+  on screen was read off the angle the game was really showing (na_intha:
+  inventory.py's na_top projection was not the view, so the first aim missed;
+  observer runs of saves 99 and 100 gave the sign's position). On the spot: the
+  sign spins, the trapdoor opens (393-397). Save 101. A tap on the trapdoor:
+  down to **lb**, the cave (398). A tap on the cave's sign: Manny reads the
+  verse and takes the key (399-402). Save 102.
 
-- **Save 94** (build/bench/saves/grim94.gsv): tr, Manny holding the barrow
-  between box2 and box3 or just past box2, the left pair set (pump1 = pump2).
-- Start: `tools/proof/cycle.sh 94 nosave` (rebuilds mouse.lua and the lab,
-  starts the daemon, loads the save; working files in build/proof-bench, the
-  shots in build/bench/proof). Steps: `tools/proof/g.py '<json>'`.
-- Timing tools (tools/proof): `beat.py 26` (26 shots, each pump's strike
-  times; TL/BL/TR/BR as above), `trial.py x y pre post [delay [TL|TR|BR]]` (a
-  tap at x,y, optionally `delay` s after that pump's strike, with shots either
-  side; the daemon's `onbeat` step), `tap2.py fx fy ds` (a tap 110 px above
-  Manny's line for ds units, + push / - pull, from Manny's feet as the moment
-  now logs them: "Manny's feet x,y"; it under-shoots by about 0.2 near x 400,
-  and a target closer than 0.1 stops at once).
-- Next: (1) check which piston is which: park on box2 and see that TR stops
-  (if TL stops, swap the names). (2) Set the right pair: park on box2, push off
-  timed to pump4's strike (`trial.py ... 0.65 BR`), so pump3 = pump4, and pump3
-  must not equal pump1. (3) The switch, Glottis up the tree, the switch again
-  (the walkthrough). Then Year 1 goes on: the sign to Rubacava, the beavers.
+## Resume here (after the third session, 15 Nov 2026)
+
+- **Save 102** (build/bench/saves/grim102.gsv): lb, the cave under the
+  clearing, Manny by the sign with the key in the coat.
+- Start: `tools/proof/cycle.sh 102 nosave` (now builds the lab through the patch
+  check, from the daemon's game folder). Steps: `tools/proof/g.py '<json>'`.
+- Next (the walkthrough, "Busy Beavers"): back to the Bone Wagon, over the
+  rocks to the northeast (the pogo sticks), the door: chased out; back through
+  the gate, three bones at the edge of the bone dam (near the green bit); face
+  the tar, throw a bone; the extinguisher out of the coat and held (moment 16)
+  when a beaver jumps in; three times; the key on the gate's lock. Then Rubacava.
+- Question 1's binding (two fingers on the floor with an item in hand) needed
+  so far: the mouthpiece in gs (306), the sign in na (378, 393). Note each new one.
+- Reading state: observer runs (`observe.py <name> <lua> build/proof-bench/q.json
+  --load N`, after saving the proof game and quitting the daemon) give the truth
+  in a few seconds; aim on screen with the angle the engine logs Manny on, not
+  the first of a set's setups. build/proof-bench/aim.py projects tr setup 2.
 - Known ahead: the lighthouse top (no tap moves Manny), the conveyor belt's
-  invented `cy.offbelt` (retire it for the game's jump box), question 1's
-  binding wherever Manny uses an item on himself.
-- The ScummVM tree's grim room adapter (engines/grim/pt_room.cpp) was missing
-  (taken out for the Mac bench, it seems); ScummVMKit/rooms/apply.sh put it back
-  before the iOS build (the Mac bench builds with it too).
+  invented `cy.offbelt` (retire it for the game's jump box).
 - The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
-  in ~/Developer/pointyclicky-build. Both build dirs had reconfigured and lost
-  FreeType (deps has no pkg-config file); three lines appended to each
-  config.mk fix it (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib
-  -lfreetype -lz -lbz2`). A reconfigure (an engine list change) loses them again.
+  in ~/Developer/pointyclicky-build; the FreeType lines are in both config.mk
+  (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib -lfreetype -lz
+  -lbz2`); a reconfigure loses them. The grim room adapter (pt_room.cpp) is in.
+- engine/grim_edition.patch is now cut against ScummVM 2026.4.0 +
+  grim_pointyclicky.patch alone (the room adapter's grim.cpp/grim.h/module.mk
+  changes left out); before, it carried the adapter's line offsets.

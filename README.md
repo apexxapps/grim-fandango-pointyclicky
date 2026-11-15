@@ -24,13 +24,13 @@ from a new game to the credits.
 | `data/hotspots/*.set.hot` | the hotspots, one file per set: polygons in 640x480 game pixels per camera setup |
 | `data/lab/` | patches to the game's scripts and costumes (`.patchr`), cursors and inventory images (`.tga`), and the compiled `mouse.lua` |
 | `data/scripts/mouse.lua` | `mouse.lua`'s source |
-| `tools/build-lab.py` | packs `data/` into `grim-pointyclicky.lab` |
+| `tools/build-lab.py` | packs `data/` into `grim-pointyclicky.lab`, after checking every script patch fits your copy of the game (1.01 update included) |
 | `docs/` | the recce, the plan and the notes |
 
 ## Build
 
 ```sh
-python3 -I tools/build-lab.py          # -> build/grim-pointyclicky.lab
+python3 -I tools/build-lab.py --game <your Grim folder>   # -> build/grim-pointyclicky.lab
 cd <scummvm v2026.4.0> && git apply <this>/engine/grim_pointyclicky.patch
 ```
 

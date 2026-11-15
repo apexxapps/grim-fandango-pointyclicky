@@ -365,8 +365,47 @@ index bc268b4..72f06ea 100644
  
  	/**
  	 * Sets the scale of the actor.
+diff --git a/engines/grim/debug.cpp b/engines/grim/debug.cpp
+index c86b5c3..3e7b31a 100644
+--- a/engines/grim/debug.cpp
++++ b/engines/grim/debug.cpp
+@@ -28,12 +28,15 @@ namespace Grim {
+ void Debug::registerDebugChannels() {
+ }
+ 
++// The channels are ids (ScummVM's DebugChannelDef), not bits: "channel |
++// Debug::Info" named no channel at all, so --debugflags=patchr (or any other)
++// printed nothing. Each is asked on its own.
+ bool Debug::isChannelEnabled(DebugChannel chan) {
+ 	return DebugMan.isDebugChannelEnabled(chan);
+ }
+ 
+ void Debug::debug(DebugChannel channel, const char *s, ...) {
+-	if (isChannelEnabled(channel | Debug::Info)) {
++	if (isChannelEnabled(channel) || isChannelEnabled(Debug::Info)) {
+ 		va_list args;
+ 		va_start(args, s);
+ 		Common::String buf = Common::String::vformat(s, args);
+@@ -44,7 +47,7 @@ void Debug::debug(DebugChannel channel, const char *s, ...) {
+ }
+ 
+ void Debug::warning(DebugChannel channel, const char *s, ...) {
+-	if (isChannelEnabled(channel | Debug::Warning)) {
++	if (isChannelEnabled(channel) || isChannelEnabled(Debug::Warning)) {
+ 		va_list args;
+ 		va_start(args, s);
+ 		Common::String buf = Common::String::vformat(s, args);
+@@ -55,7 +58,7 @@ void Debug::warning(DebugChannel channel, const char *s, ...) {
+ }
+ 
+ void Debug::error(DebugChannel channel, const char *s, ...) {
+-	if (isChannelEnabled(channel | Debug::Error)) {
++	if (isChannelEnabled(channel) || isChannelEnabled(Debug::Error)) {
+ 		va_list args;
+ 		va_start(args, s);
+ 		Common::String buf = Common::String::vformat(s, args);
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
-index 7df0c64..012bc92 100644
+index f2fabc5..39c5e34 100644
 --- a/engines/grim/grim.cpp
 +++ b/engines/grim/grim.cpp
 @@ -828,8 +828,11 @@ void GrimEngine::luaUpdate() {
@@ -486,10 +525,10 @@ index 7df0c64..012bc92 100644
  
  	_justSaveLoaded = true;
 diff --git a/engines/grim/grim.h b/engines/grim/grim.h
-index 0ac3cff..343d626 100644
+index 8927544..9f26d98 100644
 --- a/engines/grim/grim.h
 +++ b/engines/grim/grim.h
-@@ -223,6 +223,17 @@ protected:
+@@ -216,6 +216,17 @@ protected:
  	void pauseEngineIntern(bool pause) override;
  
  	void handleControls(Common::EventType type, const Common::KeyState &key);
@@ -2410,3 +2449,37 @@ index 0864e95..140ed91 100644
  	_audioTrack = new SmushAudioTrack(getSoundType(), true, freq, channels);
  	addTrack(_audioTrack);
  	return true;
+diff --git a/engines/grim/patchr.cpp b/engines/grim/patchr.cpp
+index bb49425..142c686 100644
+--- a/engines/grim/patchr.cpp
++++ b/engines/grim/patchr.cpp
+@@ -367,13 +367,16 @@ Common::SeekableReadStream *wrapPatchedFile(Common::SeekableReadStream *rs, cons
+ 
+ 	Common::Path patchfile = filename.append(".patchr");
+ 	int i = 1;
++	bool tried = false, patched = false;
+ 	while (SearchMan.hasFile(patchfile)) {
+ 		Debug::debug(Debug::Patchr, "Patch requested for %s (patch filename %s)", filename.toString().c_str(), patchfile.toString().c_str());
++		tried = true;
+ 
+ 		PatchedFile *pf = new PatchedFile;
+ 		if (pf->load(rs, patchfile)) {
+ 			rs = Common::wrapBufferedSeekableReadStream(pf, 1024, DisposeAfterUse::YES);
+ 			Debug::debug(Debug::Patchr, "Patch for %s successfully loaded", filename.toString().c_str());
++			patched = true;
+ 			break;
+ 		}
+ 
+@@ -381,6 +384,12 @@ Common::SeekableReadStream *wrapPatchedFile(Common::SeekableReadStream *rs, cons
+ 		patchfile = filename.append(Common::String::format("_%d.patchr", i++));
+ 	}
+ 
++	// PointyClicky Edition: a patch that doesn't fit the file the game reads
++	// is skipped and the file plays unpatched. Say so every time, not only
++	// with --debugflags=patchr (15 Nov 2026, docs/proof.md).
++	if (tried && !patched)
++		warning("Grim: no patch fits %s (size %d): it plays unpatched", filename.toString().c_str(), (int)rs->size());
++
+ 	return rs;
+ }
+ 
