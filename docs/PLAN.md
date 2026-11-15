@@ -152,6 +152,12 @@ emergency font). Those are ours to design (phase 2 and the decisions above).
   scripts brings the old ones back. On every load the engine must run the
   edition's script again (mouse.lua, written so a second run is harmless), so
   an update reaches saves made before it.
+  **Done (15 Nov 2026):** the engine runs mouse.lua again after every load;
+  its objects are created only if missing, its renames only if the name
+  differs, wrapped functions captured once. The outlines too: after a load
+  they come from the data again (a hotspot a script moved keeps its place).
+  Proven on the bench: a save made with the pre-coat mouse.lua opens the coat
+  after the load (build/bench/j1-*).
 
 ## Phase 3: the data (every scene, measured)
 

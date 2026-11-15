@@ -11,6 +11,7 @@ grim-mouse.lab) and ScummVM's grim-patch.lab. The script is a list of steps:
   {"key": "i"} / {"key": "esc"} / {"key": "left"}
   {"move": [x, y]} / {"click": [x, y], "button": 1}
   {"shot": "name"}                   -> build/bench/name.png
+  {"save": 1} / {"load": 1}          the engine's own save / load, slot n
 Everything is written under build/bench (git-ignored).
 """
 import json
@@ -100,6 +101,10 @@ def run(bench, steps):
             print('move', bench.call('move', x=st['move'][0], y=st['move'][1]))
         elif 'click' in st:
             print('click', bench.call('click', x=st['click'][0], y=st['click'][1], button=st.get('button', 1)))
+        elif 'save' in st:
+            print('save', bench.call('save', slot=st['save'], name=st.get('name', 'bench')))
+        elif 'load' in st:
+            print('load', bench.call('load', slot=st['load']))
         elif 'shot' in st:
             path = os.path.join(bench.out, st['shot'] + '.png')
             print('shot', bench.call('shot', path=path))

@@ -1,5 +1,12 @@
 PrintDebug("sourced mouse.lua") -- Grim Mouse mouse.lua, (c) Tobias Pfaff, GPL-2.0-or-later;
 -- decompiled from mouse.lab bytecode with scummvm-tools delua on 2026-11-11
+-- PointyClicky Edition (15 Nov 2026): this file runs at boot AND again after
+-- every load (the engine re-runs it, so a save made before a fix gets the fix).
+-- So every top-level statement must be harmless the second time: functions and
+-- constant fields are simply set again; an object is created only if it isn't
+-- there (its touchable state is the save's); a rename only if the name differs
+-- (a second RenameHotspot would give the hotspot a new id and unlink its outline);
+-- a function we wrap is captured once (pc_*).
 system.mouseCommand = function(arg1, arg2, arg3) -- line 3
     if system.currentSet then
         system.currentSet:mouseCommand(arg1, arg2, arg3)
@@ -375,6 +382,12 @@ Object.rename = function(arg1, arg2) -- line 373
     arg1.string_name = trim_header(arg2)
     RenameHotspot(arg1.hotspot_id, arg2)
 end
+-- (run again: a no-op, see the top)
+pc_rename = function(arg1, arg2)
+    if arg1 and arg1.name ~= arg2 then
+        arg1:rename(arg2)
+    end
+end
 Object.get_inv = function(arg1) -- line 378
     if arg1.inv_name then
         return arg1.inv_name
@@ -622,9 +635,11 @@ ac.linearMoveMinus = function(arg1, arg2, arg3) -- line 615
         end
     end
 end
-al.dummy_door = Object:create(al, "/altxa00/dummydoor", 0, 100, 0, { range = 0.100000001 })
-al.dummy_door:make_untouchable()
-al.ga_door_obj:rename("/altxa01/big door")
+if not al.dummy_door then
+    al.dummy_door = Object:create(al, "/altxa00/dummydoor", 0, 100, 0, { range = 0.100000001 })
+    al.dummy_door:make_untouchable()
+end
+pc_rename(al.ga_door_obj, "/altxa01/big door")
 at.mouseSpecial = function(arg1, arg2, arg3) -- line 628
     if arg2 == "sxcat" and arg3 > 0 then
         start_script(at.ledge.use)
@@ -721,11 +736,11 @@ bd.extinguisher.use = function(arg1) -- line 707
         bd.extinguisher:default_response()
     end
 end
-bv.bone_wagon:rename("/bvtxa00/bonewagon")
-bv.padlock:rename("/bvtx043/padlock")
-bv.padlock_obj:rename("/bvtxa01/padlock")
-bv.gate:rename("/bvtx053/gate")
-bv.bd_door:rename("/bvtxa02/door")
+pc_rename(bv.bone_wagon, "/bvtxa00/bonewagon")
+pc_rename(bv.padlock, "/bvtx043/padlock")
+pc_rename(bv.padlock_obj, "/bvtxa01/padlock")
+pc_rename(bv.gate, "/bvtx053/gate")
+pc_rename(bv.bd_door, "/bvtxa02/door")
 cf.mouseSpecial = function(arg1, arg2, arg3) -- line 729
     if arg3 > 0 and cutSceneLevel <= 0 then
         if arg2 == "sxcancel" then
@@ -739,17 +754,17 @@ cf.mouseSpecial = function(arg1, arg2, arg3) -- line 729
         end
     end
 end
-cf.panel:rename("/cftxa00/panel")
-cf.panelcu:rename("/cftxa01/panel")
-cf.drawer:rename("/cftxa02/drawer")
-cf.lounge:rename("/cftxa03/lounge")
-cn.charlie_obj:rename("/cntxa06/charlie")
-cn.printer:rename("/cntxa05/printer")
-cn.ticket:rename("/cntxa04/stub")
-cn.bogen_obj:rename("/cntxa00/bogen")
-cn.gamblers:rename("/cntxa01/gamblers")
-cn.croupier_obj:rename("/cntxa02/croupier")
-cn.pass:rename("/cntxa03/pass")
+pc_rename(cf.panel, "/cftxa00/panel")
+pc_rename(cf.panelcu, "/cftxa01/panel")
+pc_rename(cf.drawer, "/cftxa02/drawer")
+pc_rename(cf.lounge, "/cftxa03/lounge")
+pc_rename(cn.charlie_obj, "/cntxa06/charlie")
+pc_rename(cn.printer, "/cntxa05/printer")
+pc_rename(cn.ticket, "/cntxa04/stub")
+pc_rename(cn.bogen_obj, "/cntxa00/bogen")
+pc_rename(cn.gamblers, "/cntxa01/gamblers")
+pc_rename(cn.croupier_obj, "/cntxa02/croupier")
+pc_rename(cn.pass, "/cntxa03/pass")
 co.computer.mouseSelect = function(arg1, arg2, arg3) -- line 753
     if arg2 > 0 and co.computer.selection ~= arg2 - 1 then
         start_sfx("cpuBeep2.WAV")
@@ -769,15 +784,19 @@ co.computer.mouseSelect = function(arg1, arg2, arg3) -- line 753
         start_script(co.computer.select_response, co.computer)
     end
 end
-cy.offbelt = Object:create(cy, "/cytxa00/offbelt", 100, 0, 0, { range = 0.100000001 })
+if not cy.offbelt then
+    cy.offbelt = Object:create(cy, "/cytxa00/offbelt", 100, 0, 0, { range = 0.100000001 })
+end
 cy.offbelt.use_pnt_x = 0.0754809976
 cy.offbelt.use_pnt_y = 3.71420002
 cy.offbelt.use_pnt_z = 0.115829997
 cy.offbelt.use = function(arg1) -- line 776
     start_script(cy.jump_off_conveyor, cy)
 end
-dd.terry_obj:rename("/ddtxa00/terry")
-de.forkdrive = Object:create(de, "/detxb00/forklift", 0, 100, 0, { range = 0.100000001 })
+pc_rename(dd.terry_obj, "/ddtxa00/terry")
+if not de.forkdrive then
+    de.forkdrive = Object:create(de, "/detxb00/forklift", 0, 100, 0, { range = 0.100000001 })
+end
 de.forkdrive.active_driving = TRUE
 de.forkdrive.use = function(arg1) -- line 782
     PrintDebug("im being used")
@@ -793,7 +812,7 @@ end
 de.forkdrive.pickUp = function(arg1) -- line 793
     manny:say_line("/wcma008/")
 end
-dp.anchor:rename("/dptxa00/anchor")
+pc_rename(dp.anchor, "/dptxa00/anchor")
 ei.mouseSpecial = function(arg1, arg2, arg3) -- line 797
     if cutSceneLevel <= 0 and arg3 > 0 then
         if arg2 == "sxleft" then
@@ -809,16 +828,16 @@ ei.mouseSpecial = function(arg1, arg2, arg3) -- line 797
         end
     end
 end
-ei.dp_button:rename("/eitxa00/button")
-ei.op_button:rename("/eitxa01/button")
-ei.intruments:rename("/eitxa02/instruments")
-ei.left_control:rename("/eitxa03/lever")
-ei.right_control:rename("/eitxa04/lever")
-ei.engine:rename("/eitxa05/engine")
-ei.spot:rename("/eitxa06/spot")
-ei.glottis_obj:rename("/eitxa07/Glottis")
-ei.op_door:rename("/eitxa07/door")
-ei.il_door:rename("/eitxa08/hatch")
+pc_rename(ei.dp_button, "/eitxa00/button")
+pc_rename(ei.op_button, "/eitxa01/button")
+pc_rename(ei.intruments, "/eitxa02/instruments")
+pc_rename(ei.left_control, "/eitxa03/lever")
+pc_rename(ei.right_control, "/eitxa04/lever")
+pc_rename(ei.engine, "/eitxa05/engine")
+pc_rename(ei.spot, "/eitxa06/spot")
+pc_rename(ei.glottis_obj, "/eitxa07/Glottis")
+pc_rename(ei.op_door, "/eitxa07/door")
+pc_rename(ei.il_door, "/eitxa08/hatch")
 ew.crane_actor.is_left = function(arg1) -- line 822
     return arg1.cur_point >= ew.crane_points.num_points - 1
 end
@@ -922,13 +941,13 @@ ew.mouseSpecial = function(arg1, arg2, arg3) -- line 904
 end
 gs.ga_door.comeOut = function(arg1) -- line 923
 end
-hl.raoul_obj:rename("/hltxa00/Raoul")
-il.corpse1:rename("/iltxa00/body")
-il.corpse2:rename("/iltxa01/body")
-il.corpse3:rename("/iltxa02/bodies")
-il.corpse4:rename("/iltxa03/bodies")
-il.ladder:rename("/iltxa05/ladder")
-il.lz_door:rename("/iltxa04/hatch")
+pc_rename(hl.raoul_obj, "/hltxa00/Raoul")
+pc_rename(il.corpse1, "/iltxa00/body")
+pc_rename(il.corpse2, "/iltxa01/body")
+pc_rename(il.corpse3, "/iltxa02/bodies")
+pc_rename(il.corpse4, "/iltxa03/bodies")
+pc_rename(il.ladder, "/iltxa05/ladder")
+pc_rename(il.lz_door, "/iltxa04/hatch")
 ly.mouseSpecial = function(arg1, arg2, arg3) -- line 932
     if arg3 > 0 then
         if arg2 == "dxup" then
@@ -938,21 +957,23 @@ ly.mouseSpecial = function(arg1, arg2, arg3) -- line 932
         end
     end
 end
-lz.port_pipe:rename("/lztxa00/vent")
-lz.starboard_pipe1:rename("/lztxa01/vent")
-lz.starboard_pipe2:rename("/lztxa02/vent")
-lz.cleat1:rename("/lztxa03/cleat")
-lz.cleat2:rename("/lztxa04/cleat")
-lz.il_door:rename("/lztxa05/door")
-me.ticket:rename("/metxa21/Double-N ticket")
-me.door_flowers:rename("/metxa22/flowers")
-me.darts:rename("/metxa23/darts")
-me.salvador_obj:rename("/metxa20/Salvador's head")
-me.salvador2 = Object:create(me, "/metxa30/Salvador's head", 16.7999992, -19.8999996, -7.85500002, { range = 0.899999976 })
+pc_rename(lz.port_pipe, "/lztxa00/vent")
+pc_rename(lz.starboard_pipe1, "/lztxa01/vent")
+pc_rename(lz.starboard_pipe2, "/lztxa02/vent")
+pc_rename(lz.cleat1, "/lztxa03/cleat")
+pc_rename(lz.cleat2, "/lztxa04/cleat")
+pc_rename(lz.il_door, "/lztxa05/door")
+pc_rename(me.ticket, "/metxa21/Double-N ticket")
+pc_rename(me.door_flowers, "/metxa22/flowers")
+pc_rename(me.darts, "/metxa23/darts")
+pc_rename(me.salvador_obj, "/metxa20/Salvador's head")
+if not me.salvador2 then
+    me.salvador2 = Object:create(me, "/metxa30/Salvador's head", 16.7999992, -19.8999996, -7.85500002, { range = 0.899999976 })
+    me.salvador2:make_untouchable()
+end
 me.salvador2.use_pnt_x = 16.7999992
 me.salvador2.use_pnt_y = -19.8999996
 me.salvador2.use_pnt_z = -7.85500002
-me.salvador2:make_untouchable()
 me.salvador2.lookAt = function(arg1) -- line 956
     me.salvador_obj:lookAt()
 end
@@ -965,8 +986,14 @@ mf.nowalk = function(arg1, arg2) -- line 964
     single_start_script(mf.flail_around)
 end
 mf.wound.use_immediate = TRUE
-mf.wound:make_touchable()
-na.bone_drive = Object:create(na, "/natxb00/Bone Wagon", 0, 100, 0, { range = 0.100000001 })
+-- (Grim Mouse makes the wound touchable for good; mf.lua never takes it back,
+-- so doing it again after a load changes nothing)
+if not mf.wound.touchable then
+    mf.wound:make_touchable()
+end
+if not na.bone_drive then
+    na.bone_drive = Object:create(na, "/natxb00/Bone Wagon", 0, 100, 0, { range = 0.100000001 })
+end
 na.bone_drive.active_driving = TRUE
 na.bone_drive.use_immediate = TRUE
 na.bone_drive.use = function(arg1) -- line 972
@@ -982,10 +1009,10 @@ end
 na.bone_drive.lookAt = function(arg1) -- line 982
     na.bone_wagon:lookAt()
 end
-nq.meche_obj:rename("/nqtxa10/Meche")
+pc_rename(nq.meche_obj, "/nqtxa10/Meche")
 nq.inv_name = "lsa_photo"
-op.anchor:rename("/optxa00/anchor")
-op.ei_door:rename("/optxa01/door")
+pc_rename(op.anchor, "/optxa00/anchor")
+pc_rename(op.ei_door, "/optxa01/door")
 
 pf.mouseSpecial = function(arg1, arg2, arg3) -- line 990
     if arg3 > 0 then
@@ -993,7 +1020,9 @@ pf.mouseSpecial = function(arg1, arg2, arg3) -- line 990
     end
 end
 ri.photo.inv_name = "celso_photo"
-sg.bone_drive = Object:create(sg, "/sgtxb00/Bone Wagon", 0, 100, 0, { range = 0.100000001 })
+if not sg.bone_drive then
+    sg.bone_drive = Object:create(sg, "/sgtxb00/Bone Wagon", 0, 100, 0, { range = 0.100000001 })
+end
 sg.bone_drive.use_immediate = TRUE
 sg.bone_drive.active_driving = TRUE
 sg.bone_drive.use = function(arg1) -- line 999
@@ -1009,9 +1038,9 @@ end
 sg.bone_drive.lookAt = function(arg1) -- line 1009
     sg.bone_wagon:lookAt()
 end
-sh.glottis_obj:rename("/shtxa01/glottis")
-sh.flower_trail_obj:rename("/shtxa02/master flower trail")
-sh.te_ladder:rename("/shtx010/ladder")
+pc_rename(sh.glottis_obj, "/shtxa01/glottis")
+pc_rename(sh.flower_trail_obj, "/shtxa02/master flower trail")
+pc_rename(sh.te_ladder, "/shtx010/ladder")
 sh.remote.use_immediate = TRUE
 si.photofinish.use_immediate = TRUE
 sl.key.inv_name = "old_key"
@@ -1130,8 +1159,10 @@ end
 ts.tx_door.walkOut = function(arg1) -- line 1130
     tx:come_out_door(tx.ts_door)
 end
-tu.extinguisher:rename("/tutx018/fire extinguisher")
-tu.red_tube_os = Object:create(tu, "/tutxc01/red tube", 0.647489011, -0.162466004, 0.360000014, { range = 9.99999994e-09 })
+pc_rename(tu.extinguisher, "/tutx018/fire extinguisher")
+if not tu.red_tube_os then
+    tu.red_tube_os = Object:create(tu, "/tutxc01/red tube", 0.647489011, -0.162466004, 0.360000014, { range = 9.99999994e-09 })
+end
 tu.red_tube_os.use_pnt_x = 1.15021002
 tu.red_tube_os.use_pnt_y = -0.162992999
 tu.red_tube_os.use_pnt_z = 0
@@ -1155,13 +1186,17 @@ vd.mouseSpecial = function(arg1, arg2, arg3) -- line 1147
         end
     end
 end
-vi.broadaxe:rename("/vitxa04/axe")
-vo.dummy_axe = Object:create(vo, "/votxb00/broadaxe", 0, 100, 0, { range = 0 })
+pc_rename(vi.broadaxe, "/vitxa04/axe")
+if not vo.dummy_axe then
+    vo.dummy_axe = Object:create(vo, "/votxb00/broadaxe", 0, 100, 0, { range = 0 })
+end
 vo.dummy_axe.use_immediate = TRUE
 vo.dummy_axe.use = function(arg1) -- line 1161
     single_start_script(vo.drop_axe, vo)
 end
-wc.forkdrive = Object:create(wc, "/wctxb00/forklift", 0, 100, 0, { range = 0.100000001 })
+if not wc.forkdrive then
+    wc.forkdrive = Object:create(wc, "/wctxb00/forklift", 0, 100, 0, { range = 0.100000001 })
+end
 wc.forkdrive.active_driving = TRUE
 wc.forkdrive.use = function(arg1) -- line 1166
     if manny.is_driving then
