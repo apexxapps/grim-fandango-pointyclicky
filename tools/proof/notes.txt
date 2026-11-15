@@ -1,0 +1,20 @@
+Y1 mo Manny's office: tap the tube (reads the work order message) [002-003]; tap the door [010]. NB first tap on the floor right behind Manny opened the coat (he's tall here, the 'on Manny' box is the whole height) [006]
+Y1 ha hall: double tap the front-desk floor (runs) [012]; tap the garage elevator [013]
+Y1 ga garage: run in, run to the shed corner, tap Glottis's door [014-016]; dialogue by tapping lines: driver?, I'm Calavera, need a new driver, replacement driver, Come on Glottis, cars too small [017-024]; work order handed over [025]. SAVE 50
+Y1 ga: back to the lift: big door outline fixed (F1) [027-031]
+Y1 ha: coat -> work order -> tap Eva: Copal won't see you [042-045]. Garage lift outline fixed (F2, F3)
+Y1 lo lobby -> os -> st street -> al alley [052-055]; tap the rope of ties: Manny climbs to the ledge [056-058]; tap Copal's window [059]; tap the computer, tap "Ah, cripes, Eva! Just sign it yourself" (reply 5) [060-062]; stuck (F4), fixed, window [066]; tap the ties to climb down (F5) [069]
+Y1 st -> rp -> os -> lo lift -> ha [075-078]; coat, work order, tap Eva: she signs [079-080]; cut scenes to the Land of the Living [081-083]
+Y1 lr diner: tap Manny (the scythe up) [084]; tap the body: soul out, back to the garage [085]
+Y1 lo->ha->mo: back in the office (SAVE 52), the deck on the side table (F6) [093-099]; ha: cards on the hole punch (F7, F8): a punched card [105-108] SAVE 55
+Y1 lo: the tube demon's complaint plays [111-112]; fe festival: clown dialogue (Practicing what?, twist me one, bet ya can't do a cat, a dead worm), balloon; again (my kid wants another, more dead worms) [113-125] SAVE 56
+Y1 lo (F9) -> pk packing room: worm balloon on the blue nozzle, the other on the red [132-140] SAVE 58
+Y1 mo: each full balloon on the tube (the coat's thirds to pick) [148-155] SAVE 60
+Y1 lo -> tu tube room: tap the dead bolt (locks it open), the repairman ("Who would do a terrible thing like this?", "Well, I gotta split"): extinguisher in the coat; Manny shown out [168-178] SAVE 61
+Y1 tu again (F10): the wheel opens the booth, punched card on the red tube; Domino's message caught; Meche [180-189] SAVE 62; "Excuse me..." [190]; out, ha: Copal's door; the funny-bones cut scene, Manny fired, locked in Glottis's shed [191-201] SAVE 63
+Y1 gs: knock (door): "getting out and getting even", "crooked game", "blow the lid off"; LSA HQ cut scenes [202-208]; hq: Salvador ("Okay, I'm in", "messenger", "pigeons from the roof", "I'm off") [211-216] SAVE 64; the lift out to the alley [219-221] SAVE 65
+Y1 fe: clown, "my kid wants another", "a cat": cat balloon [223-229]; bread from the tent [230]
+Y1 al: ties, ledge (SAVE 66); le setup 1 Domino's window [236]; do: speed bag x3, mouthpiece from the floor [239-244]; drawer opened, coral taken [246-248]; window back (F11) [251] SAVE 69
+Y1 le: loose end (coils the rope), tap Manny: the coat (moment 17's I), coral -> ties it [258-260] SAVE 71; the grappling hook, tap the sky: thrown, caught [262-263] SAVE 72; tap the rope: across; ladder (moment 10) up [264-266]
+Y1 rf roof: (F12) cat balloon on the dish, bread on it: the pigeons fly [270-283] SAVE 75; the nest: eggs [284]; back by the roof's 'back' path to the ladder, ledge, ties down [286-288]
+Y1 al: the big door into the garage [291]; ga: across to the shed corner, tap Glottis's door [292-300]; gs: tap Manny = put away the eggs; coat, mouthpiece (blue) out, tap the Fill-A-Dent: bonded [304]; two-finger tap on the floor with it in hand: Manny bites it (molded) [306] (QUESTION Q1)
