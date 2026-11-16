@@ -786,6 +786,33 @@ cy.offbelt.use_pnt_z = 0.115829997
 cy.offbelt.use = function(arg1) -- line 776
     start_script(cy.jump_off_conveyor, cy)
 end
+-- PointyClicky Edition (16 Nov 2026, the proof playthrough): off the belt is the
+-- game's own jump box (cy.jump_box.walkOut: jump_off_conveyor, which stops the
+-- belt's pull and walks Manny to the jump itself). Grim Mouse's stand-in first
+-- walked him to a point a metre up the belt, so with the belt running down he was
+-- pulled into the far end and floated back to the anchor room ("Uh-oh"), every
+-- time: coming up from there he has some 15 frames (half a second) before the
+-- belt takes him. So: the jump box's walkOut at once, as walking into it was, and
+-- the stand-in is touchable only while Manny is on the belt (the game makes the
+-- belt itself untouchable then); off it, the ground it covers is plain floor.
+cy.offbelt.immediate = TRUE
+cy.offbelt.use_immediate = TRUE
+if not pc_belt_touchable then
+    pc_belt_touchable = cy.belt.make_touchable
+end
+cy.belt.make_touchable = function(arg1)
+    pc_belt_touchable(arg1)
+    Object.make_untouchable(cy.offbelt)
+end
+cy.belt.make_untouchable = function(arg1)
+    Object.make_untouchable(arg1)
+    Object.make_touchable(cy.offbelt)
+end
+if cy.belt.touchable then
+    cy.offbelt.touchable = FALSE
+else
+    cy.offbelt.touchable = TRUE
+end
 pc_rename(dd.terry_obj, "/ddtxa00/terry")
 pc_rename(dp.anchor, "/dptxa00/anchor")
 pc_rename(ei.dp_button, "/eitxa00/button")

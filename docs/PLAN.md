@@ -211,14 +211,16 @@ point where you want to go or what you want to work, and click.
    Grim a walkthrough and NudgeAI hints.
    **In progress (docs/proof.md):** played by pointer from a new game, Year 1
    through El Marrow, the Petrified Forest, the beavers and Rubacava, all of
-   Year 2 to the raid on the cafe, into Year 3 (16 Nov 2026); twenty-nine fixes
-   on the way (the Blue Casket quit the game: TinyGL's draw memory; eight dead
-   ends: Copal's computer kept the pointer after it closed; the wheelbarrow's
-   pull never ended; the roulette room's door; the forklift in the elevator;
+   Year 2 and Year 3, into Year 4 (16 Nov 2026); thirty-two fixes on the way
+   (the Blue Casket quit the game: TinyGL's draw memory; eleven dead ends:
+   Copal's computer kept the pointer after it closed; the wheelbarrow's pull
+   never ended; the roulette room's door; the forklift in the elevator;
    Velasco's card check left Manny in the Blue Casket; the lounge door's
    passages came back shut; Lupe's window took no card; the betting stub had
-   lost its name for the photo window), and the held-item gesture decided (a
-   tap on Manny uses it on its own).
+   lost its name for the photo window; the conveyor belt floated Manny away
+   before he could step off; the crane at the crusher end only went up and
+   down; the broadaxe could not leave the vault's armour corner), and the
+   held-item gesture decided (a tap on Manny uses it on its own).
 3. **Coverage**: during that run, every object the game ever made touchable
    was reachable by the pointer at least once.
 4. **Known faults**: Grim Mouse's crash at Domino's computer (#48), its

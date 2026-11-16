@@ -586,7 +586,7 @@ index 0ac3cff..9cfafa3 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..6d9763e 100644
+index f6552fb..7033ca0 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -622,7 +622,7 @@ index f6552fb..6d9763e 100644
 +	_driving(false), _driveKind(0), _driveReverse(false), _driveExit(false), _driveTurnOnly(false), _driveStart(0), _driveCheckTime(0),
 +	_drivePressTime(0), _driveCheckYaw(0), _cranePoint(0), _craneLast(0),
 +	_momKind(0), _momNumHeld(0), _momStart(0), _momCheckTime(0), _momLastPress(0), _momTarget(0), _momCheckS(0),
-+	_momArrive(0), _momFwd(Common::KEYCODE_UP), _momBack(Common::KEYCODE_DOWN), _momGoal(0), _momThen(0),
++	_momArrive(0), _momFwd(Common::KEYCODE_UP), _momBack(Common::KEYCODE_DOWN), _momSetup(-1), _momGoal(0), _momThen(0),
 +	_fingerKey(Common::KEYCODE_u), _fingerDown(false), _fingerRelease(false), _fingerTime(0), _fingerPending(false),
 +	_replaying(false) {
  	for (int i = 0; i < 8; i++)
@@ -1113,7 +1113,7 @@ index f6552fb..6d9763e 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1219,1194 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1219,1226 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -1166,6 +1166,7 @@ index f6552fb..6d9763e 100644
 +static const float kTunnelArrive = 0.25f;     // the tunnel: there, along it
 +static const uint32 kTunnelTimeout = 30000;
 +static const int kCraneReach = 70;            // a tap this near the track (pixels) is on it
++static const int kCraneOnPoint = 14;          // ... this near a point: on the track, even over the crane
 +static const uint32 kCraneTimeout = 40000;
 +static const uint32 kCraneStall = 6000;       // no point passed in this long: stuck
 +
@@ -1507,16 +1508,8 @@ index f6552fb..6d9763e 100644
 +// stop; a tap on the crane lowers it (Down) or, lowered, raises it (Up); a tap
 +// anywhere else is U, climb out (the game says when it can't, in between).
 +bool HotspotMan::craneTap(Actor *v, const Common::Point &cursor) {
-+	if (onActor(v, cursor) && craneMoving() == kNoKey) {
-+		driveStop("tap on the crane");
-+		if (luaTrue("ew.crane_down"))
-+			pressKey(Common::KEYCODE_UP, 0, "on the crane, lowered: Up");
-+		else
-+			pressKey(Common::KEYCODE_DOWN, 0, "on the crane: Down");
-+		return true;
-+	}
 +	int n = (int)luaNumber("ew.crane_points.num_points");
-+	int best = -1, bestD = kCraneReach * kCraneReach;
++	int best = -1, bestD = kCraneReach * kCraneReach, bestX = 0, bestY = 0;
 +	for (int i = 0; i < n; i++) {
 +		Common::String p = Common::String::format("ew.crane_points[%d].pos", i);
 +		Math::Vector3d w = luaPoint(p + ".x", p + ".y", p + ".z");
@@ -1527,7 +1520,23 @@ index f6552fb..6d9763e 100644
 +		if (d < bestD) {
 +			bestD = d;
 +			best = i;
++			bestX = x;
++			bestY = y;
 +		}
++	}
++	// PointyClicky Edition (the proof playthrough, 16 Nov 2026): the crane as
++	// drawn (boom and all) covers the track points beside it, so at the crusher
++	// end a tap on the track one or two points on lowered it instead. A tap
++	// right on another point of the track (kCraneOnPoint) is a tap on the track.
++	int cur = (int)luaNumber("ew.crane_actor.cur_point");
++	bool onPoint = best >= 0 && best != cur && bestD <= kCraneOnPoint * kCraneOnPoint;
++	if (onActor(v, cursor) && !onPoint && craneMoving() == kNoKey) {
++		driveStop("tap on the crane");
++		if (luaTrue("ew.crane_down"))
++			pressKey(Common::KEYCODE_UP, 0, "on the crane, lowered: Up");
++		else
++			pressKey(Common::KEYCODE_DOWN, 0, "on the crane: Down");
++		return true;
 +	}
 +	if (best < 0) {
 +		driveStop("tap off the track");
@@ -1541,7 +1550,7 @@ index f6552fb..6d9763e 100644
 +	_driveSet = g_grim->getCurrSet()->getName();
 +	_driveStart = _driveCheckTime = g_system->getMillis();
 +	_craneLast = (int)luaNumber("ew.crane_actor.cur_point");
-+	debug(1, "Grim Mouse: crane: to point %d from %d (tap %d,%d)%s", best, _craneLast, cursor.x, cursor.y,
++	debug(1, "Grim Mouse: crane: to point %d (at %d,%d) from %d (tap %d,%d)%s", best, bestX, bestY, _craneLast, cursor.x, cursor.y,
 +	      wasDriving ? ", re-targeted" : "");
 +	driveUpdate();
 +	return true;
@@ -1783,6 +1792,9 @@ index f6552fb..6d9763e 100644
 +
 +static const uint32 kMomentStall = 1500;      // along a line: no progress in this long, blocked
 +static const uint32 kMomentTimeout = 30000;
++static const float kAxeThere = 0.06f;        // the broadaxe: this near the tap is there (the drop is 0.15-0.43 from the tile)
++static const int kAxeEdge = 10;              // ... a tap this near the screen's edge is past it
++static const float kAxeEdgeMore = 0.6f;      // ... by this much
 +static const uint32 kQueueGap = 250;          // a queued press no sooner than this after the last
 +static const uint32 kQueueHold = 100;         // ... and held this long
 +static const uint32 kQueueTimeout = 8000;
@@ -1951,7 +1963,10 @@ index f6552fb..6d9763e 100644
 +	d.z() = 0;
 +	float dist = d.getMagnitude();
 +	float off = angleDiff(manny->getYawTo(_momPoint).getDegrees() + 180.f - manny->getYaw().getDegrees());
-+	if (dist < 0.25f || (_momNumHeld && _momHeld[0] == Common::KEYCODE_DOWN && fabs(off) > 100.f))
++	// (an edge tap: on past the screen's edge, until the game changes the camera)
++	if (_momSetup >= 0 && g_grim->getCurrSet() && g_grim->getCurrSet()->getSetup() != _momSetup)
++		return momentStop("the camera changed");
++	if (dist < kAxeThere || (_momNumHeld && _momHeld[0] == Common::KEYCODE_DOWN && fabs(off) > 100.f))
 +		return momentStop("there");
 +	bool backing = false;
 +	for (int i = 0; i < _momNumHeld; i++)
@@ -2191,11 +2206,28 @@ index f6552fb..6d9763e 100644
 +		if (!manny || !groundPoint(cursor, manny->getPos().z(), 0.f, target, exit))
 +			return true;
 +		momentStop("re-targeted");
++		// PointyClicky Edition (the proof playthrough, 16 Nov 2026): a tap at the
++		// screen's edge is a point past it. In the vault's armour corner (vo,
++		// setup 2) the floor's last visible row is the camera's own boundary, so
++		// no tap could back Manny out of that view, and the drag to the secret
++		// door was a dead end. There the target goes on along the same line
++		// (kAxeEdgeMore) and the drag ends when the game changes the camera.
++		_momSetup = -1;
++		if (cursor.y >= kGameH - kAxeEdge || cursor.x < kAxeEdge || cursor.x >= kGameW - kAxeEdge) {
++			Math::Vector3d along = target - manny->getPos();
++			along.z() = 0;
++			if (along.getMagnitude() > 1e-3f) {
++				along.normalize();
++				target += along * kAxeEdgeMore;
++				_momSetup = g_grim->getCurrSet()->getSetup();
++			}
++		}
 +		_momKind = kind;
 +		_momPoint = target;
 +		_momOrigin = manny->getPos();
 +		_momStart = _momCheckTime = g_system->getMillis();
-+		debug(1, "Grim Mouse: broadaxe: back to %.2f,%.2f (tap %d,%d)", target.x(), target.y(), cursor.x, cursor.y);
++		debug(1, "Grim Mouse: broadaxe: back to %.2f,%.2f (tap %d,%d)%s", target.x(), target.y(), cursor.x, cursor.y,
++		      _momSetup >= 0 ? ", past the edge" : "");
 +		axeUpdate();
 +		return true;
 +	}
@@ -2309,7 +2341,7 @@ index f6552fb..6d9763e 100644
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..31c3450 100644
+index 9d342ba..1f68626 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2396,7 +2428,7 @@ index 9d342ba..31c3450 100644
  
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
-@@ -127,10 +176,73 @@ protected:
+@@ -127,10 +176,74 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
@@ -2458,6 +2490,7 @@ index 9d342ba..31c3450 100644
 +	Common::KeyCode _momFwd, _momBack;
 +	// the broadaxe: back to this point
 +	Math::Vector3d _momPoint;
++	int _momSetup;    // the broadaxe: the camera when the tap was made (-1: no edge tap)
 +	// a queue (the computer, the printer, the elevator): the goal, then what to do there
 +	int _momGoal, _momThen;
 +	// a key held for as long as the finger is (the extinguisher, the vault's wheel)

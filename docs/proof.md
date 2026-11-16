@@ -1,9 +1,8 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
-*Started 15 Nov 2026. In progress: from a new game through Year 1 and Year 2
-(to the raid on the Calavera Cafe) into Year 3 (on board the Bone Wagon ship).
-Not yet at the credits. Resume from save 176 (build/bench/saves/grim176.gsv;
-see "Resume here" at the end).*
+*Started 15 Nov 2026. In progress: from a new game through Years 1, 2 and 3
+(to Domino's end) into Year 4. Not yet at the credits. Resume from save 218
+(build/bench/saves/grim218.gsv; see "Resume here" at the end).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -285,6 +284,44 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     extinguisher (tu: use_extinguisher). mouse.lua: rename keeps a string_name
     the game gave, and the three get theirs back (also in saves made before).
     Proven from save 172: the ticket goes through, the photo (1222-1225).
+30. **cy, off the conveyor belt: Manny floated back to the anchor room every
+    time** (a dead end for the chain: the belt has to be stepped off at its foot
+    to work its lever). Coming up from the anchor room the belt is running down,
+    and Manny has some 15 frames (half a second) on it before the belt carries
+    him into its far end, where the game floats him back down ("Uh-oh"). The
+    1998 way off is the game's jump box (cy.jump_box.walkOut: jump_off_conveyor,
+    which stops the belt's pull itself); Grim Mouse's stand-in, cy.offbelt,
+    first walked him to a point a metre up the belt, so the belt always won
+    (observer runs of save 192: "Executing sentence: walkOut /cytx011/more belt"
+    while the walk to the offbelt was still going; shots 1499-1505, the float
+    back). mouse.lua: the offbelt now runs the jump at once (use_immediate, as
+    walking into the jump box did), and it is touchable only while Manny is on
+    the belt (the game makes the belt itself untouchable then; off it, the
+    ground the offbelt's outline covers is plain floor again). Proven from save
+    192: a tap on the floor beside the belt the moment Manny arrives, off (1506-
+    1508); and twice more later, from the top of the belt (1570, 1597).
+31. **Engine: the crane at the crusher end could not be moved off point 28**
+    (ew, the crane cab). The crane as drawn (boom and all) covers the last
+    points of its track, so every tap on the track near it was "on the crane"
+    and lowered or raised it (1546-1551: four taps, Down, Up, Down, Up). Getting
+    it lowered on the scoop's spot is the crane puzzle's own move, so it was
+    workable only by luck. hotspotman.cpp `craneTap`: a tap within 14 px of
+    another point of the track is a tap on the track, even over the crane; the
+    log now names the point's place on screen. Proven: 28 to 27 and back
+    (1553-1556), lowered at 28 by a tap on the crane above the track (1557).
+32. **Engine: the broadaxe could not be dragged out of the vault's armour
+    corner** (vo, setup 2; a dead end for the secret room). The broadaxe moment
+    backs Manny to the floor point of a tap; in that camera the floor's last
+    visible row is the camera's own boundary (vo_amrms), so no tap could back
+    him out of the view, and the secret door is behind the camera (1652-1658:
+    taps at the bottom of the screen ended "there" a few centimetres on).
+    hotspotman.cpp: a tap within 10 px of the screen's edge is a point past
+    it (the line from Manny through the tap, 0.6 on), and the drag ends when
+    the game changes the camera; and "there" is now within 0.06 (it was 0.25,
+    which made the drop on the tile, a 0.15-0.43 ring, a matter of luck). Proven
+    from save 211: a tap at the bottom edge, out into the round room
+    (1659-ax4); then back to the secret door and, in the secret room, onto the
+    tile and away from it facing it, the drop: the tile breaks (1669-1679).
 
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
@@ -447,6 +484,63 @@ P9. **The roulette panel's magnet (cf, Year 2, Betting the Farm).** Target: the
     threw it 1 s after the light came on (1269-1270). A person has to know which
     light is "the rightmost wheel" (the walkthrough's words) and wait up to two
     minutes; the hints should say "the right-hand light".
+
+P10. **Chepito's pass (su, Year 3, the sunken Lola).** Target: Chepito as drawn
+    as he walks past the dark edge of the light (about 60 x 130 px, about 150 x
+    325 pt): easy. Window: he passes about once every 40 s and is on screen in
+    the light for some 8 s; a tap on him then starts the talk (the moving
+    Chepito object is touchable only while he's in the chepito_visible sector).
+    The bench waited for his light (a brightness poll) and tapped 7.7 s after
+    it rose (1331, 1340, 1348). Then the lantern: during his three bobs at the
+    pearl (about 12 s after the line "Well, I don't wanna break your stride",
+    for some 12 s) a tap on the lantern grabs him (1356-1360); and a tap on
+    Glottis hands him over. Gesture: taps. Save 47 (proof save 180, before the
+    walk to the edge). OK: a person sees him coming; a miss waits for the next
+    pass. (On the bench the first two lantern tries missed by tapping too early,
+    before the bait started; nothing is lost.)
+P11. **Meche's ashtray (ar, Year 3).** Target: the ashtray (outline 105 x 62
+    px, about 260 x 155 pt): easy. Window: Manny's twist of the ashtray has to
+    come just before Meche's next idle is the ash flick (one of four idles,
+    picked at random, each some 3-5 s); after it the ashtray goes back in
+    about 2 s. The bench needed about 20 taps over several minutes (shots at*,
+    au*, av*, aw*), at random moments; it is the 1998 puzzle as it was (the
+    walkthrough: "this may take several tries"). A Meche talk opens if the tap
+    lands on her outline, which overlaps the ashtray's left half (taps at
+    345,355 kept opening it; at 305,350, the overlap's other side, the ashtray
+    was taken every time). Gesture: tap the ashtray, again and again. Save 45
+    (proof save 187). **Fiddly, and the 1998 game's own timing.** Suggested:
+    nothing in the rule; the outline overlap could favour the ashtray when
+    Manny is beside it (a hand fix), and the hints should say "keep twisting
+    the ashtray until she flicks".
+P12. **The vault door's tumblers (vd, Year 3).** Target: the wheel's halves on
+    the close-up (big). Window: none, but precision: the four tumblers turn
+    with the wheel while it's held (about 140 degrees a second, accelerating),
+    each next one picked up when the one before passes its pin, and turning
+    back resets the pins; all four must end between 248 and 290 degrees. The
+    bench read the tumblers in observer runs to plan the holds (right 0.5 s, 2
+    s, 3 s, 0.5 s; left 9 s, 1.7 s, 0.75 s; right 0.75 s), shots 1617-1626; a
+    person reads them off the screen (the slots line up). Gesture: press and
+    hold on a half, lift to stop. Save 46 (proof save 204). **Likely fiddly:**
+    the hold is the 1998 key held, so the finger's lift is the stop; a hold
+    accurate to a tenth of a second is needed at the end. Suggested: none in
+    the rule; maybe a short tap could be a single small step (as the undrilled
+    door's 45-degree turn is) once the door is drilled. For Simon.
+P13. **The broadaxe drop on the tile (vi, Year 3).** Target: Manny has to stand
+    0.15-0.43 from the tile (-0.236, -0.388) facing it within 30 degrees, then
+    drop the axe (drop_test). By pointer: back onto the tile (a tap on it),
+    then back away from it (a tap 0.35 off, so his back is to that point and
+    his face to the tile), then a tap on Manny drops it (1673-1679). A tap that
+    lands on Manny's own outline drops the axe at once (1674: the axe fell in
+    the wrong place, picked up again). Gesture: taps on the floor, then on
+    Manny. Save 48 (proof save 214, in the secret room with the axe). OK but
+    unmarked: the tile is the one the water drained through; a person has to
+    work out "stand back from it, facing it". Fine as the 1998 puzzle.
+
+(Also met, not timed: the porthole anchor (dp) can't be hooked while Manny is
+still walking in, about 7 s after entering: a tap then says nothing and does
+nothing (1294, 1305-1308); waited for, it hooks at once (dph). And at the
+octopus (lu) the first tap with the scythe did nothing visible; the next, from
+a save just after, worked (1688-1695). Neither stops the game.)
 
 ## Questions for Simon
 
@@ -764,35 +858,87 @@ P9. **The roulette panel's magnet (cf, Year 2, Betting the Farm).** Target: the
   **End of Year 2.** Year 3 begins: the Bone Wagon ship, Salvador's message
   (1273-1274). **Save 176** (Manny on the ship's deck, lz).
 
-## Resume here (after the eighth session, 16 Nov 2026)
+### Year 3 (ninth session, 16 Nov 2026)
 
-- **Save 176** (build/bench/saves/grim176.gsv): Year 3 has begun, Manny on the
-  deck of the ship (lz) after Salvador's message. Start: `tools/proof/cycle.sh
-  176 nosave`, then wait for the plain cursor. Steps: `tools/proof/g.py '<json>'`.
-- Next (the walkthrough, build/proof-bench/wt/jeff.txt "VI. Year Three", from
-  line 1542): the ship, then Year 3 to its end.
-- Physical checks: every timed or precise moment from here gets an entry in
-  "Physical checks for Simon" and a save in build/for-simon (next slot 45).
+- **lz, il, ei: the ship.** The hatch, the ladder, down the hall: Glottis's
+  rescue (1275-1282). The starboard anchor's button (raised), the controls: the
+  left lever (starboard), let go, the button twice (lowered, raised: hooked)
+  (1283-1291). **dp**: the coat, the scythe, the anchor; the first taps came
+  while the game was still walking Manny in and did nothing (1294-1308; see
+  the note under the physical checks); then hooked through the porthole (dph,
+  1311). Back, P, the port anchor's button: the ship tears (1312-1316); the
+  controls, the console below the levers (back): the ship splits (1317-1324).
+  Save 180.
+- **su: under the sea.** To the dark edge; Chepito's pass, tapped as he went by
+  (P10, 1331), "Well, I don't wanna break your stride"; twice more before the
+  lantern was tapped during the bait, not before it (1340-1355; save 181 at the
+  choice); the lantern grabbed, Glottis tapped: Chepito handed over (1356-1364).
+  Save 182. **ps**: up the ridge, round the rock in front: Chepito caught by the
+  barnacle, the sub taken (1368-1385). Save 184.
+- **fh, vd, ar, fo: the Edge of the World.** The doors, the elevator, the
+  walkway to the right: Meche and Domino (1386-1404). Save 185. The angelitos:
+  "Why do you want to bite me?", "What are you two doing in this cage?",
+  "Listen, children...", "I'm here to help you get out of this cage", "My hands
+  are not too big...", "...tiny tools", "Okay, back to work" (1408-1415); the
+  hammer (1418-1419). Save 186. **ar**: the ashtray, twisted until Meche's ash
+  flick: the stockings (P11, many tries; 1424-1438). Save 188.
+- **ea, mn: Chepito.** The elevator down, left at the bottom: Chepito; the
+  hammer on him: the Bust-All; the stockings on him: the gun (1442-1483). Save
+  189.
+- **cy, ac, cv, ew, cu, bu: the boat.** The belt's lever, onto the belt: up and
+  over into ac, the anchor room (the belt was set to carry down); crawled back to
+  cy and off the belt only after fix 30 (1489-1508). Save 193. The lever (up),
+  the belt, cv, the ladder, the crane: over to the crusher end and lowered
+  (1509-1529). **cu, bu**: down to the beach, the Bust-All on the scoop: the
+  chain broken (1530-1538). Save 196. Back up the ramp, the crane: raised,
+  lowered and raised at the crusher (fix 31, 1546-1563): the crusher freed;
+  back to the conveyor end, lowered: the chain on the belt (1564-1567). Save
+  199. Down, off the belt, the lever (the chain jams, bunches), again, again
+  (1570-1580); up, the crane: raised (the chain pulled through: Poseidon)
+  (1581-1590). Save 202.
+- **vd, ar, dr, vo, vi: rescuing Meche.** Back to the ashtray room; the gun on
+  Meche (1599-1607). Save 203. The vault door: the Bust-All on the jamb
+  (1612-1616); the wheel, the tumblers lined up (P12, 1617-1626; save 205); the
+  scythe in them, the handle: open (1627-1633). Save 207. In; the vault door
+  closed; the scythe on the metal tab: the secret door (1634-1641). Save 208.
+  The sprinkler (scythe), the valve (1642-1648). Save 209. The broadaxe from
+  the armour corner (fix 32, 1649-1663), dragged to the secret room
+  (1669-1672), onto the tile and away facing it, dropped: the tile breaks (P13,
+  1673-1679). Save 215.
+- **lu: Domino's fall.** The escape, Domino in the sub; the coat, the scythe, a
+  tap on the octopus (the first did nothing visible; again from save 217:
+  1692-1695): Domino's end. **End of Year 3.** Year 4 begins at the Petrified
+  Forest's edge, the Number Nine (1696-1698). **Save 218.**
+
+## Resume here (after the ninth session, 16 Nov 2026)
+
+- **Save 218** (build/bench/saves/grim218.gsv): Year 4 has begun (the tower at
+  the edge of the world, after Domino's end). Start: `tools/proof/cycle.sh 218
+  nosave`, then wait for the plain cursor. Steps: `tools/proof/g.py '<json>'`.
+- Next (the walkthrough, build/proof-bench/wt/jeff.txt "B. Year Four
+  Walkthrough", from line 1906): Glottis under the tracks, the packing foam, the fire, to
+  the end credits.
+- Physical checks: every timed or precise moment gets an entry in "Physical
+  checks for Simon" and a save in build/for-simon (next slot 49).
 - Held items: a tap on Manny uses it on its own; `{"key":"p"}` stands in for
-  the swipe up (put away). The coat opens on the item last put away.
-- Known ahead: the conveyor belt's invented `cy.offbelt` (Year 3), the
-  anchor crawl, the ship's engine levers.
-- Bench notes: dialogue lines at x 90, rows y 396/418/439/461 (a two-line list
-  sits at 439/461; a "Yes" row at the left, x 30). Reading state: observer runs
-  (`tools/proof/qq.sh <slot> <lua>`, or `tools/proof/observe.py` with a json of
-  steps), never the proof game. To list the scripts running, an observer Lua
-  that maps functions to names by nextvar (build/proof-bench/q24.lua) helps.
-  The roulette lights: tools-free, a poll of three 8 px crops of the panel
-  (8x8+53+325 top left, 8x8+158+351 right, 10x10+51+411 bottom).
+  the swipe up (put away). The coat opens on the item last put away; Skip (the
+  bench's `{"key":"esc"}`) closes it.
+- Bench notes (as before): dialogue lines at x 90, rows y 396/418/439/461.
+  Reading state: observer runs (`tools/proof/qq.sh <slot> <lua>`, whose wait
+  after the Lua is now 3 s; or `tools/proof/observe.py` with a json of steps
+  and `OBS_WAIT`), never the proof game. Which set: an observer Lua printing
+  `system.currentSet.setFile`. A moment that shows up only by light (Chepito):
+  the daemon's `onbeat` on a crop's brightness.
 - The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
-  in ~/Developer/pointyclicky-build; the FreeType lines are in both config.mk
-  (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib -lfreetype -lz
-  -lbz2`); a reconfigure loses them. The shared tree also carries the app's
-  bladerunner_fixes.patch (checked with `git apply --check -R`): keep it.
+  run in ~/Developer/pointyclicky-build, with the app repo's ScummVMKit (its
+  default out-dir is the app's ScummVMKit/lib). The FreeType lines are in both
+  config.mk (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib
+  -lfreetype -lz -lbz2`); a reconfigure loses them. The shared tree carries the
+  app's bladerunner_fixes.patch (checked with `git apply --check -R`): keep it.
 - engine/grim_edition.patch is cut against ScummVM 2026.4.0 +
-  grim_pointyclicky.patch alone (build/proof-bench/patchgen holds that base, at
-  its HEAD; the room adapter's grim.cpp/grim.h/module.mk changes are left out).
-  This session: the base archived to a scratch repo, the old patch applied,
-  hotspotman.cpp/h copied over (they carry no room adapter changes), the
-  grim.cpp/grim.h edits made again by hand (those files do), cut as a git diff,
-  and checked with `git apply --check` on a fresh copy.
+  grim_pointyclicky.patch alone (build/proof-bench/patchgen, at its HEAD). This
+  session: a clone of the base, the old patch applied, every patched file but
+  hotspotman.cpp/h checked identical to the shared tree (grim.cpp and grim.h
+  included), hotspotman.cpp/h copied over, cut as a git diff, checked with `git
+  apply --check` on a fresh clone. The app's ScummVMKit/patches copy is the
+  same file.

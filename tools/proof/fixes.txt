@@ -21,3 +21,6 @@ F26 mouse.lua: a door's passage sectors come back from the set file invisible on
 F27 ev setup 0 (hand.txt): the stairs' 'up' path went straight through the elevator's box from the elevator door; now by the floor's left (up2's path). Shots 1116-1128.
 F28 engine (hotspotman.cpp): a character's outline still takes taps while the character is drawn over it (Lupe mostly hidden by the coat check counter). Shots 1143-1148.
 F29 mouse.lua: Object.rename keeps the game's string_name (Sentence finds use_<string_name>); the betting stub, the Double-N ticket and the extinguisher had lost theirs. Shots 1219-1225.
+F30 mouse.lua: cy.offbelt runs the jump box's walkOut at once (use_immediate) and is touchable only while Manny is on the belt; its walk up the belt let the running belt float him back to ac every time. Shots 1499-1508.
+F31 engine (hotspotman.cpp craneTap): a tap within 14 px of another track point is on the track even over the crane as drawn; at the crusher end every track tap lowered/raised. Shots 1546-1557.
+F32 engine (hotspotman.cpp broadaxe): a tap within 10 px of the screen's edge is a point 0.6 past it, ending when the camera changes; "there" 0.06 (was 0.25). vo's armour corner had no way out with the axe. Shots 1652-1663, 1669-1679.
