@@ -471,9 +471,17 @@ Inventory.close_me = function(arg1) -- line 366
         start_script(close_inventory)
     end
 end
+-- (PointyClicky Edition, 16 Nov 2026, the proof playthrough: Grim Mouse's
+-- rename also replaced the object's string_name, which the game's Sentence uses
+-- to find its handler (use_<string_name>). Renamed for Grim Mouse's hover
+-- names, the printed betting ticket became "stub", so the Photo Finish
+-- window's use_ticket never ran (a dead end); the Double-N ticket and the fire
+-- extinguisher were broken the same way. A string_name the game gave is kept.)
 Object.rename = function(arg1, arg2) -- line 373
     arg1.name = arg2
-    arg1.string_name = trim_header(arg2)
+    if not arg1.string_name or arg1.string_name == "" then
+        arg1.string_name = trim_header(arg2)
+    end
     RenameHotspot(arg1.hotspot_id, arg2)
 end
 -- (run again: a no-op, see the top)
@@ -888,6 +896,11 @@ ts.tx_door.walkOut = function(arg1) -- line 1130
     tx:come_out_door(tx.ts_door)
 end
 pc_rename(tu.extinguisher, "/tutx018/fire extinguisher")
+-- (the game's own string_names, which the renames above had replaced: their
+-- handlers are use_ticket and use_extinguisher; also mends saves made before)
+if cn and cn.ticket then cn.ticket.string_name = "ticket" end
+if me and me.ticket then me.ticket.string_name = "ticket" end
+if tu and tu.extinguisher then tu.extinguisher.string_name = "extinguisher" end
 if not tu.red_tube_os then
     tu.red_tube_os = Object:create(tu, "/tutxc01/red tube", 0.647489011, -0.162466004, 0.360000014, { range = 9.99999994e-09 })
 end
@@ -926,6 +939,41 @@ Head_Control = function()
         NoticeHotspot(hot_object.hotspot_id)
     end
 end
+-- PointyClicky Edition (16 Nov 2026, the proof playthrough): a door's own
+-- "opened" and its passage sectors agree again on every visit. The engine
+-- reads a set afresh from its file each time Manny enters it, so the passages
+-- go back to the file's "invisible" while the door's opened stays TRUE; the
+-- door then neither opens (open() sees it open) nor lets him through. Seen at
+-- the VIP lounge's door (hh): opened on the way in, left by the kitchen, and
+-- after the union card Manny could never go back in to Nick. After a set's
+-- enter: for each door the game holds open, its passages are made active, as
+-- the game's own Object.open did (_objects.lua).
+pc_sync_passages = function(set)
+    local k, v = next(set, nil)
+    while k do
+        if type(v) == "table" and v ~= set.parent and v.opened and type(v.passage) == "table" then
+            local i, p = next(v.passage, nil)
+            while i do
+                MakeSectorActive(p, TRUE)
+                i, p = next(v.passage, i)
+            end
+        end
+        k, v = next(set, k)
+    end
+end
+if not pc_switch_to_set then
+    pc_switch_to_set = Set.switch_to_set
+end
+Set.switch_to_set = function(arg1, arg2)
+    local r = pc_switch_to_set(arg1, arg2)
+    if system.currentSet == arg1 then
+        pc_sync_passages(arg1)
+    end
+    return r
+end
+if system.currentSet then
+    pc_sync_passages(system.currentSet)
+end
 -- PointyClicky Edition (14 Nov 2026): the inventory is Manny's own coat, the
 -- 1998 close-up (Simon: "the coat, 100%"), never Grim Mouse's grid. Grim
 -- Mouse's patched _inventory.lua opens and closes the inventory through these
@@ -936,7 +984,22 @@ suitInventoryButtonHandler2 = suitInventoryButtonHandler
 Inventory.setup_draw = function(arg1)
     Inventory:switch_to_set()
 end
+-- (16 Nov 2026, the proof playthrough: Grim Mouse's close_inventory always
+-- calls this (its inCloseUpSet is forced TRUE), so a cut scene that closes the
+-- inventory without ever showing the coat (Velasco checking the union card:
+-- open_inventory(TRUE, TRUE), close_inventory()) went back to the set the coat
+-- was last opened in, the Blue Casket, and stuck there. The 1998 test again:
+-- only leave the coat if the coat is what's showing; otherwise keep the button
+-- handler as it is, since Grim Mouse's close puts inventory_save_handler back.)
+pc_coat_sets = function()
+    local s = system.currentSet
+    return s == suit_inv or s == action_inv or s == cafe_inv or s == nautical_inv or s == siberian_inv or s == death_inv or s == charlie_inv
+end
 Inventory.unload_inventory = function(arg1)
+    if not pc_coat_sets() then
+        inventory_save_handler = system.buttonHandler
+        return
+    end
     mannys_hands:wait_for_chore()
     Inventory:return_to_set()
     inventory_save_set:current_setup(inventory_save_setup)

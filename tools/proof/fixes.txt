@@ -15,3 +15,9 @@ F15 tr.lua / ac.lua patches: Grim Mouse's loops `while <key> or find_script(tr.l
 F19 lm setups 2,3: the bottle (lmtx115) was a band over the whole dock (70..639 x 160-450), so a tap on Velasco took the bottle. Redrawn round the bottle on the desk (512..560 x 274-306). Shots 598-601.
 F20 cn: no way out of the roulette room: Sentence("walkOut") walks first to the closed door's use point, which no walk sector reaches. mouse.lua walk_and_do walks on to the out point, through the door's box (the 1998 way). Shots 635-643.
 F21 de forklift (moment 2): off by the seat; found by its body outline; turns on the spot to a tap it is at; finer scale; a tap on it works the lever when the game makes the lever touchable. Shots 732-773.
+F24 lm (mouse.lua): Velasco's union-card check closes the inventory without the coat ever showing; Grim Mouse's close always ran the coat's return_to_set and put Manny back in the Blue Casket, stuck. unload_inventory leaves the coat only when the coat is showing. Shots 975-979, 990-996.
+F25 engine (grim.cpp): the second tap of a double tap (500 ms, 24 px) only makes the first a run; in hh's near shot it was taken as a tap on Manny (the coat). Shots 1015, 1022-1023.
+F26 mouse.lua: a door's passage sectors come back from the set file invisible on every visit while its opened stays TRUE; after each set's enter (and a load) the open doors' passages are made active. hh's lounge door. Shots 1026-1029.
+F27 ev setup 0 (hand.txt): the stairs' 'up' path went straight through the elevator's box from the elevator door; now by the floor's left (up2's path). Shots 1116-1128.
+F28 engine (hotspotman.cpp): a character's outline still takes taps while the character is drawn over it (Lupe mostly hidden by the coat check counter). Shots 1143-1148.
+F29 mouse.lua: Object.rename keeps the game's string_name (Sentence finds use_<string_name>); the betting stub, the Double-N ticket and the extinguisher had lost theirs. Shots 1219-1225.

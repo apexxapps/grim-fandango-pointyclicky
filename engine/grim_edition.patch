@@ -422,7 +422,7 @@ index 5f7804b..6a152ca 100644
  	_storedDisplay = new Graphics::Surface;
  	_storedDisplay->create(_gameWidth, _gameHeight, _pixelFormat);
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
-index 7df0c64..f1d3539 100644
+index 7df0c64..e818582 100644
 --- a/engines/grim/grim.cpp
 +++ b/engines/grim/grim.cpp
 @@ -828,8 +828,11 @@ void GrimEngine::luaUpdate() {
@@ -464,7 +464,7 @@ index 7df0c64..f1d3539 100644
  bool GrimEngine::handleMouseEvent(Common::Event &event) {
  	if (!_hotspotManager || _mode == SmushMode)
  		return false;
-@@ -1009,11 +1026,21 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
+@@ -1009,32 +1026,70 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
  		_hotspotManager->hover(_cursor->getPosition());
  		return true;
  	}
@@ -484,9 +484,20 @@ index 7df0c64..f1d3539 100644
 +	if (_hotspotManager->momentEvent(event, _cursor->getPosition()))
 +		return true;
  	bool doubleClick = false;
++	// PointyClicky Edition (16 Nov 2026): the second tap of a double tap (run)
++	// only makes the first one a run. In a near shot Manny turns and steps
++	// into the spot between the two taps, and the second was taken as a tap
++	// on him: the coat opened instead of the run (hh, the lounge corridor).
++	bool secondOfRun = false;
  	if (type == Common::EVENT_LBUTTONDOWN) {
  		uint32 now = g_system->getMillis();
-@@ -1022,19 +1049,36 @@ bool GrimEngine::handleMouseEvent(Common::Event &event) {
++		Common::Point p = _cursor->getPosition();
+ 		doubleClick = (now - _lastClick) < 500;
++		secondOfRun = doubleClick && !_lastClickOnManny &&
++		              ABS(p.x - _lastClickPos.x) < 24 && ABS(p.y - _lastClickPos.y) < 24;
+ 		_lastClick = now;
++		_lastClickPos = p;
++		_lastClickOnManny = false;
  	}
  	bool inventory = type == Common::EVENT_MBUTTONDOWN ||
  	                 (type == Common::EVENT_LBUTTONDOWN && event.kbd.hasFlags(Common::KBD_CTRL));
@@ -508,7 +519,8 @@ index 7df0c64..f1d3539 100644
 -			int cx = (feet.x + head.x) / 2;
 -			inventory = p.y >= top && p.y <= bottom && ABS(p.x - cx) <= MAX(20, (bottom - top) / 4);
 -			debug(1, "Grim Mouse: right click %d,%d; Manny %d,%d-%d,%d%s", p.x, p.y, feet.x, feet.y, head.x, head.y, inventory ? ": inventory" : "");
-+			bool onManny = _hotspotManager->tapOnManny(p);
++			bool onManny = !secondOfRun && _hotspotManager->tapOnManny(p);
++			_lastClickOnManny = onManny;
 +			if (onManny) {
 +				useHeld = LuaBase::instance()->queryVariable("(system.currentActor.is_holding ~= nil)", false) > 0;
 +				inventory = !useHeld;
@@ -528,7 +540,7 @@ index 7df0c64..f1d3539 100644
  	if (inventory) {
  		Common::KeyState kbd(Common::KEYCODE_i, 'i');
  		handleChars(Common::EVENT_KEYDOWN, kbd);
-@@ -1363,6 +1407,15 @@ void GrimEngine::savegameRestore() {
+@@ -1363,6 +1418,15 @@ void GrimEngine::savegameRestore() {
  		lua_PatchGrimSave();
  	}
  
@@ -545,10 +557,17 @@ index 7df0c64..f1d3539 100644
  
  	_justSaveLoaded = true;
 diff --git a/engines/grim/grim.h b/engines/grim/grim.h
-index 0ac3cff..343d626 100644
+index 0ac3cff..9cfafa3 100644
 --- a/engines/grim/grim.h
 +++ b/engines/grim/grim.h
-@@ -223,6 +223,17 @@ protected:
+@@ -218,11 +218,24 @@ protected:
+ 	Cursor *_cursor = nullptr;
+ 	HotspotMan *_hotspotManager = nullptr;
+ 	uint32 _lastClick = 0;
++	Common::Point _lastClickPos;	// PointyClicky Edition: where the last tap was
++	bool _lastClickOnManny = false;	// ... and whether it was a tap on Manny
+ 	bool handleMouseEvent(Common::Event &event);
+ 
  	void pauseEngineIntern(bool pause) override;
  
  	void handleControls(Common::EventType type, const Common::KeyState &key);
@@ -567,7 +586,7 @@ index 0ac3cff..343d626 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..ec87716 100644
+index f6552fb..6d9763e 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -732,7 +751,7 @@ index f6552fb..ec87716 100644
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -400,6 +485,109 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
+@@ -400,6 +485,128 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
  	return (c * d - b * e) / (c * a - b * b);
  }
  
@@ -758,6 +777,25 @@ index f6552fb..ec87716 100644
 +	if (cameraDepth(a->getWorldPos()) <= 0.f)
 +		return nullptr;
 +	return a;
++}
++
++// PointyClicky Edition (16 Nov 2026, the proof playthrough): a character's
++// outline is still its own while the character is drawn there, the box it's
++// drawn in overlapping the outline. Lupe behind the coat check counter is
++// drawn mostly hidden by it (a small box low in the window), and with only the
++// box live a tap on the window, where the 1998 U found her, walked instead.
++// Once a character has walked off from its outline, its outline takes no taps
++// (the stale place that "as drawn" was made for).
++bool HotspotMan::actorAway(int oid, const HotPolygon &region) {
++	Actor *a = liveActor(oid);
++	if (!a)
++		return false;
++	if (region._pnts.empty())
++		return true;
++	Common::Rect r(region._pnts[0].x, region._pnts[0].y, region._pnts[0].x + 1, region._pnts[0].y + 1);
++	for (uint i = 1; i < region._pnts.size(); i++)
++		r.extend(Common::Rect(region._pnts[i].x, region._pnts[i].y, region._pnts[i].x + 1, region._pnts[i].y + 1));
++	return !r.intersects(a->_screenBox);
 +}
 +
 +// The forklift as drawn, more closely than its box: the outline of its body
@@ -832,7 +870,7 @@ index f6552fb..ec87716 100644
 +		int gid = hs._objId;
 +		if (hs._setup != setup || hs._type >= 10 || hs._type == 3 || !hs._region.contains(p))
 +			continue;
-+		if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || liveActor(gid))
++		if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region))
 +			continue;
 +		return gid;
 +	}
@@ -842,7 +880,7 @@ index f6552fb..ec87716 100644
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
  	if (!g_grim->getCurrSet())
  		return;
-@@ -443,30 +631,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -443,30 +650,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -902,23 +940,23 @@ index f6552fb..ec87716 100644
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,8 +696,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -497,8 +715,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
 -			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active)
-+			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || liveActor(gid))
++			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region))
  				continue;
 +			debug(1, "Grim Mouse: tap on %s", _hotobject[gid]._desc.c_str());
  			LuaObjects objects;
  			objects.add(button);
  			objects.add(gid);
-@@ -587,9 +787,12 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -587,9 +806,12 @@ void HotspotMan::hover(const Common::Point &pos) {
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
 -				if (type >= 10)
-+				if (type >= 10 || liveActor(oid))
++				if (type >= 10 || actorAway(oid, hotspots[i]._region))
  					continue;
 -				cursor->setCursor((type == 2 || type == 3) ? 2 : 1);
 +				// Manny finds, the cursor confirms (Simon, 14 Nov 2026): lit only
@@ -928,7 +966,7 @@ index f6552fb..ec87716 100644
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +812,31 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -609,6 +831,31 @@ void HotspotMan::hover(const Common::Point &pos) {
  		}
  	}
  
@@ -960,7 +998,7 @@ index f6552fb..ec87716 100644
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +844,9 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -616,16 +863,9 @@ void HotspotMan::hover(const Common::Point &pos) {
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -980,7 +1018,7 @@ index f6552fb..ec87716 100644
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -645,6 +866,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
+@@ -645,6 +885,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
  	return Common::Point(x, y);
  }
  
@@ -1023,7 +1061,7 @@ index f6552fb..ec87716 100644
  void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
  	Math::Vector3d r0, r1;
  	if (!raycast(cursor.x, cursor.y, r0, r1))
-@@ -679,6 +936,7 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -679,6 +955,7 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  			if (!sector->raycast(r0, r1, v))
  				continue;
  			if (sector->isPointInSector(v)) {
@@ -1031,7 +1069,7 @@ index f6552fb..ec87716 100644
  				LuaObjects objects;
  				objects.add(button);
  				objects.add(doubleClick ? 1 : 0);
-@@ -698,6 +956,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -698,6 +975,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -1040,7 +1078,7 @@ index f6552fb..ec87716 100644
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +1018,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
+@@ -758,6 +1037,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -1058,7 +1096,7 @@ index f6552fb..ec87716 100644
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +1083,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
+@@ -812,6 +1102,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -1075,7 +1113,7 @@ index f6552fb..ec87716 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1200,1194 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1219,1194 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -2271,7 +2309,7 @@ index f6552fb..ec87716 100644
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..62db2f9 100644
+index 9d342ba..31c3450 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2358,12 +2396,13 @@ index 9d342ba..62db2f9 100644
  
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
-@@ -127,10 +176,72 @@ protected:
+@@ -127,10 +176,73 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
 +	void refreshOutlines();
 +	Actor *liveActor(int oid);
++	bool actorAway(int oid, const HotPolygon &region);
 +	int actorAt(const Common::Point &p, float &depth);
 +	int outlineObjectAt(const Common::Point &p, int setup);
  	void restoreCursor();

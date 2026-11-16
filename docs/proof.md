@@ -1,8 +1,9 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
-*Started 15 Nov 2026. In progress: from a new game through Year 1 and into
-Year 2 (Seaman Naranja done). Not yet at the credits. Resume from save 158
-(build/bench/saves/grim158.gsv; see "Resume here" at the end).*
+*Started 15 Nov 2026. In progress: from a new game through Year 1 and Year 2
+(to the raid on the Calavera Cafe) into Year 3 (on board the Bone Wagon ship).
+Not yet at the credits. Resume from save 176 (build/bench/saves/grim176.gsv;
+see "Resume here" at the end).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -228,6 +229,63 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     the phone as well. *Bench aid:* a walk tap now logs the sector it lands in
     ("walk to floor_5 (x, y, z)").
 
+24. **The union card at Velasco's: Manny stranded in the Blue Casket** (a dead
+    end). Back at the Limbo dock with the union card, Velasco's check
+    (lm.check_status) shows the card by `open_inventory(TRUE, TRUE)` and puts it
+    back by `close_inventory()`, without ever showing the coat. Grim Mouse's
+    close_inventory always runs Inventory.unload_inventory (its inCloseUpSet is
+    forced TRUE), which mouse.lua had pointed at the coat's own return_to_set:
+    so the closing went back to the set the coat was last opened in (the Blue
+    Casket) and left Manny there, invisible, with the screen on the club and no
+    way out (shots 975-979; read in an observer run of save 160: set bi, the
+    check still running; the same at 984-987). mouse.lua: unload_inventory leaves
+    the coat only when the coat is what's showing (the 1998 test); otherwise it
+    keeps the button handler as it is. Proven from save 159: Velasco checks the
+    card and Manny stays on the dock (990-996); save 160.
+25. **Engine: a double tap beside Manny opened the coat** (hh, the lounge
+    corridor, a near shot). Manny turns and steps into the spot between the two
+    taps of a run, so the second was taken as a tap on him (1015). grim.cpp: the
+    second tap of a double tap (within 500 ms and 24 px of the first, the first
+    not on Manny) only makes the first a run. Proven: the same double tap runs
+    (1022-1023). (Not a fix: a single tap on Manny's body still opens the coat.)
+26. **The VIP lounge's door would not let Manny back in** (a dead end for
+    Nick). The game reads a set afresh from its file each time Manny enters it,
+    so a door's passage sectors go back to the file's "invisible" while the
+    door's own `opened` stays TRUE from the last visit: Sentence("walkOut") sees it
+    open and skips open(), and the walk through stops at the door (1026-1027;
+    observer runs of saves 162 and 158: opened TRUE, the walk to the out point
+    fails; with the passages made active it goes through). mouse.lua: after every
+    set's enter (and after a load), each door the game holds open has its
+    passages made active, as Object.open did. Proven from save 162: the door
+    takes Manny into the lounge (1029); save 163.
+27. **ev, setup 0 (the elevator station): the stairs walked Manny into the
+    elevator.** The 'up' walk path went straight from wherever Manny stood to
+    the stairs' top; from the elevator's door that crossed the elevator's box
+    (be_box), so Manny rode down to the Blue Casket again (1116-1118; observer:
+    he walked up the funnel into be_box). The path now goes by the floor's left,
+    as 'up2' does (the walk sectors stairs_14, sect_6, stairs_15). In hand.txt.
+    Proven: a single tap on the stairs from the elevator's door goes up to ce
+    (1125-1128).
+28. **Engine: Lupe could not be given the card** (cc, the coat check). Lupe is
+    a character, found where she is drawn; behind the counter she is drawn
+    mostly hidden by it, and her outline (the window) was dropped whenever she
+    was live, so a tap on the window with the card walked instead (1143-1145,
+    BENCH_DEBUG cc-dbg). hotspotman.cpp: a character's outline still takes taps
+    while the character is drawn there (its screen box meets the outline); only
+    once it has walked off its outline is the outline dropped. Proven from save
+    168: the card on Lupe, the jacket (1146-1148). *Tools item:* the same held
+    for every character drawn mostly behind something.
+29. **The betting stub could not be used at the Photo Finish window** (a dead
+    end). Grim Mouse's Object.rename (for its hover names) also replaced the
+    object's string_name, which the game's Sentence uses to find a handler
+    (use_<string_name>): the printed ticket was renamed "stub", so
+    tb.photo_window.use_ticket never ran and the window did nothing (1219-1221;
+    observer: "Executing sentence: use Window with stub", no handler). Two more
+    were broken the same way: the Double-N ticket (me) and the fire
+    extinguisher (tu: use_extinguisher). mouse.lua: rename keeps a string_name
+    the game gave, and the three get theirs back (also in saves made before).
+    Proven from save 172: the ticket goes through, the photo (1222-1225).
+
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
 Now **data/hotspots/hand.txt** lists every outline fixed by hand (set, setup,
@@ -369,7 +427,26 @@ P7. **The blimp desk's metal detector (sl, Year 2).** Target: the detector's
 P8. **The bench's other tight spots, checked and fine:** the rope throw on the
     ledge (a tap anywhere in the sky), the extinguisher's hold (0.4 s anywhere
     on the tar), the roulette room's door (fix 20), the bridge lever (wait for the
-    bridge), the dialogue rows (21 px apart, about 52 pt).
+    bridge), the dialogue rows (21 px apart, about 52 pt). Year 2's second half:
+    the ticket printer's keys (about 42 x 36 px each, no time limit), Lupe's
+    window, the lighthouse door from above (setup 1: the door is 33 x 58 px, and
+    the doorway a tap must reach to walk in is smaller still: 1107-1108 took two
+    taps), all fine.
+
+P9. **The roulette panel's magnet (cf, Year 2, Betting the Farm).** Target: the
+    magnet switch at the panel's top right (Grim Mouse's sxmagnet outline, 82 x
+    65 px, about 205 x 160 pt): easy. Window: the panel's three lights take
+    turns, one per table, about 42 s each (right, bottom, top left, so the
+    right-hand one comes round every 2 minutes or so; measured on the bench, shots
+    rl*); the switch must be thrown while the right-hand table's wheel still
+    spins, which by the game's script (Roulette.spin_up: up in about 2 s, then
+    slowing for about 13 s) is the first 15 s or so of its light. Thrown when the
+    wheel has stopped it only buzzes (intrbuzz), and on another table it does
+    nothing to Bogen. Gesture: tap the panel on the desk, wait for the light, tap
+    the switch. Save 44 (proof save 175, the panel already open). OK: the bench
+    threw it 1 s after the light came on (1269-1270). A person has to know which
+    light is "the rightmost wheel" (the walkthrough's words) and wait up to two
+    minutes; the hints should say "the right-hand light".
 
 ## Questions for Simon
 
@@ -646,41 +723,76 @@ P8. **The bench's other tight spots, checked and fine:** the rope throw on the
   Membrillo: Naranja is dead; the cut scenes (935-944). **Save 158** (Manny
   outside the morgue, pc).
 
-## Resume here (after the seventh session, 16 Nov 2026)
+### Year 2: SeaBee Tools and Betting the Farm (eighth session, 16 Nov 2026)
 
-- **Save 158** (build/bench/saves/grim158.gsv): Year 2, Seaman Naranja done,
-  Manny outside the morgue in the plaza (pc). Start: `tools/proof/cycle.sh 158
-  nosave`, then wait for the plain cursor. Steps: `tools/proof/g.py '<json>'`.
-- Next (the walkthrough, Year 2 "SeaBee Tools"): Salvador's letter (Manny's
-  office, cf) on the Blue Casket's beatniks, the book, the book on the bees;
-  Nick in the VIP lounge: "Nick, I need a lawyer", "Friend of mine is in the
-  slammer", "An excellent lawyer", "The very best is good enough for me", "You
-  are, Nick"; again: "Virago, I REALLY need a lawyer", "I could tell Max about
-  you and Olivia"; the cigarette case on Carla ("I don't know. I found it under
-  your desk", "Yes"): the key; the lighthouse door, the card; the card on Lupe:
-  the jacket; the jacket used on its own (a tap on Manny): the paper; the paper
-  to Toto; the ticket printer: Week 2, Tuesday, Race 6, at the Photo Finish
-  window; the photo on Nick. Then "Betting the Farm" (the roulette panel in
-  Manny's office: the magnet when the right wheel's light is red) to the end of
-  Year 2.
-- Routes: the sea dock (Toto's) from xb's track end, down the pier stairs, then
-  the dock end at 565,320; the elevator tower (morgue, plaza) via dd's 'right'.
+- **pc, ev, bw, be, bi: the beatniks** (from save 158, 945-949). The coat, the
+  letters, a tap on the revolutionaries: Salvador's letter read out (950-956);
+  the book (957). **dd**: the book on the dock workers, Terry reads it, the
+  strike (968-971). Save 159.
+- **hb, lm: Velasco and the union card** (fix 24: stranded in the Blue Casket,
+  975-979; after it, the check plays on the dock, 990-996). Save 160.
+- **xb, tx, ts, kh, ks, tb, hh, hl: Nick.** The lounge corridor's double tap
+  (fix 25, 1015, 1022-1023); the lounge door (fix 26, 1026-1029). Save 163. Nick:
+  "Nick, I need a lawyer", "Friend of mine is in the slammer", "An excellent
+  lawyer", "The very best is good enough for me", "You are, Nick"; again:
+  "Virago, I REALLY need a lawyer", "I could tell Max about you and Olivia"
+  (1031-1047). The cigarette case off his table (1049). P. Save 164.
+- **tb, tw, gt, sl: the key.** Up to the blimp desk (1056-1069). The coat, the
+  cigarette case, a tap on Carla: "I don't know. I found it under your desk",
+  "Yes": the key (1070-1079). P. Save 165.
+- **dd, lx: the lighthouse.** Down the dock past the strike (1088-1092); the
+  door from the near view walks to "No path found" (the door's walk is off the
+  floor from there), from above (setup 1) the key on the door (1093-1106), the
+  doorway (two taps: 1107-1108), Lola's scene, the card (1109-1110). Save 166.
+- **ev, ce, cc: Lupe.** The stairs from the elevator (fix 27, 1116-1128); the
+  coat check, the card on Lupe (fix 28, 1143-1148): the jacket; a tap on Manny
+  with the jacket (used on its own): the paper (1150-1152). Save 169. (Leaving cc
+  just after, the game printed a Lua error from Lupe's idle script,
+  _actors.lua's new_run_idle, "unexpected type to index table" (1153); the game
+  went on, nothing lost: the 1998 script's own, not the edition's.)
+- **ev, bw, hb, xb, se, si: Toto.** The paper on Toto (1173-1178). Save 170.
+- **xb, tx, ts, tb: the photo finish.** The ticket printer used on its own (a tap
+  on Manny with it in hand): week 2 (03 down to 02 by two taps), TUE, race 6,
+  print (1201-1213). Save 171. The Photo Finish window from the floor at the
+  bottom left (1218); the ticket on it (fix 29, 1219-1221; after it, 1222-1225):
+  the photo. Save 173.
+- **hh, hl: Nick's lawyer.** The photo on Nick (1235-1250); the cut scenes:
+  Terry out (1251-1252). Save 174.
+- **pc, ev, ce, cc, cf: Betting the Farm.** Up to the office (1253-1265); the
+  panel on the desk (1266). Save 175 (physical check P9, slot 44). The right-hand
+  light, the magnet switch: Bogen's table, the raid on the cafe (1269-1272).
+  **End of Year 2.** Year 3 begins: the Bone Wagon ship, Salvador's message
+  (1273-1274). **Save 176** (Manny on the ship's deck, lz).
+
+## Resume here (after the eighth session, 16 Nov 2026)
+
+- **Save 176** (build/bench/saves/grim176.gsv): Year 3 has begun, Manny on the
+  deck of the ship (lz) after Salvador's message. Start: `tools/proof/cycle.sh
+  176 nosave`, then wait for the plain cursor. Steps: `tools/proof/g.py '<json>'`.
+- Next (the walkthrough, build/proof-bench/wt/jeff.txt "VI. Year Three", from
+  line 1542): the ship, then Year 3 to its end.
 - Physical checks: every timed or precise moment from here gets an entry in
-  "Physical checks for Simon" and a save in build/for-simon (next slot 44).
+  "Physical checks for Simon" and a save in build/for-simon (next slot 45).
 - Held items: a tap on Manny uses it on its own; `{"key":"p"}` stands in for
   the swipe up (put away). The coat opens on the item last put away.
-- Known ahead: the roulette panel (moment 12), the conveyor belt's invented
-  `cy.offbelt` (Year 3), the lighthouse top.
+- Known ahead: the conveyor belt's invented `cy.offbelt` (Year 3), the
+  anchor crawl, the ship's engine levers.
 - Bench notes: dialogue lines at x 90, rows y 396/418/439/461 (a two-line list
-  sits at 439/461). Reading state: observer runs (`tools/proof/qq.sh <slot>
-  <lua>`), never the proof game.
+  sits at 439/461; a "Yes" row at the left, x 30). Reading state: observer runs
+  (`tools/proof/qq.sh <slot> <lua>`, or `tools/proof/observe.py` with a json of
+  steps), never the proof game. To list the scripts running, an observer Lua
+  that maps functions to names by nextvar (build/proof-bench/q24.lua) helps.
+  The roulette lights: tools-free, a poll of three 8 px crops of the panel
+  (8x8+53+325 top left, 8x8+158+351 right, 10x10+51+411 bottom).
 - The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
   in ~/Developer/pointyclicky-build; the FreeType lines are in both config.mk
   (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib -lfreetype -lz
-  -lbz2`); a reconfigure loses them.
+  -lbz2`); a reconfigure loses them. The shared tree also carries the app's
+  bladerunner_fixes.patch (checked with `git apply --check -R`): keep it.
 - engine/grim_edition.patch is cut against ScummVM 2026.4.0 +
-  grim_pointyclicky.patch alone (build/proof-bench/patchgen holds that base;
-  the room adapter's grim.cpp/grim.h/module.mk changes are left out). This
-  session: the old patch applied to a copy of the base, this session's two
-  engine changes (hotspotman.cpp, gfx_tinygl.cpp) copied over, cut as a git
-  diff in a scratch repo, and checked with `git apply --check` on a fresh copy.
+  grim_pointyclicky.patch alone (build/proof-bench/patchgen holds that base, at
+  its HEAD; the room adapter's grim.cpp/grim.h/module.mk changes are left out).
+  This session: the base archived to a scratch repo, the old patch applied,
+  hotspotman.cpp/h copied over (they carry no room adapter changes), the
+  grim.cpp/grim.h edits made again by hand (those files do), cut as a git diff,
+  and checked with `git apply --check` on a fresh copy.
