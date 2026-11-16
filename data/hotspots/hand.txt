@@ -19,3 +19,4 @@ th 0 thtx093   # outlines-review.md second pass: the dressing-room exit off the 
 sg 1 sgtx050   # proof F16: the sign post, round the post as drawn (the game's point was outside)
 lm 2 lmtx115   # proof F19: the bottle on Velasco's desk, round the bottle (it was a band over the whole dock)
 lm 3 lmtx115   # proof F19
+bi 0 bitx415   # proof F22: the microphone, the stage only (it reached over the floor and a table right of the stage)

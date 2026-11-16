@@ -211,7 +211,7 @@ point where you want to go or what you want to work, and click.
    Grim a walkthrough and NudgeAI hints.
    **In progress (docs/proof.md):** played by pointer from a new game, Year 1
    through El Marrow, the Petrified Forest, the beavers and Rubacava, into
-   Year 2 to the union card (15 Nov 2026); twenty-one fixes on the way (four
+   Year 2 through Seaman Naranja (16 Nov 2026); twenty-three fixes on the way (the Blue Casket quit the game: TinyGL's draw memory; four
    dead ends: Copal's computer kept the pointer after it closed; the
    wheelbarrow's pull never ended; the roulette room's door; the forklift in
    the elevator), and the held-item gesture decided (a tap on Manny uses it on

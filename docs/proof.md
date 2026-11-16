@@ -1,8 +1,8 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
 *Started 15 Nov 2026. In progress: from a new game through Year 1 and into
-Year 2 (the union card). Not yet at the credits. Resume from save 146
-(build/bench/saves/grim146.gsv; see "Resume here" at the end).*
+Year 2 (Seaman Naranja done). Not yet at the credits. Resume from save 158
+(build/bench/saves/grim158.gsv; see "Resume here" at the end).*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -211,6 +211,23 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     hidden floor (765, save 144), into the hallway (768) and the suitcase (771-
     773). Bench: build/proof-bench save 139-146.
 
+22. **bi, setup 0 (bi_clbws), the Blue Casket's microphone (bitx415).** Its
+    outline ran on past the stage over the floor and the table to its right (to
+    x 294, y 344), so a tap on the floor in front of the stage walked Manny up on
+    stage to the microphone (the poetry reading's lines: shot 800). Cut back to
+    the stage (x 252 at most); in hand.txt. Shot 802 (the same tap walks).
+23. **Engine: the Blue Casket stopped the game** (a dead end: ScummVM quit).
+    During Lola and Olivia's scene at the back of the club, TinyGL's draw-call
+    memory ran out ("Allocator out of memory: couldn't allocate more memory from
+    linear allocator", an error() that ends the engine; shots 805-808,
+    reproduced three times from save 147). Measured: the full club takes about
+    4.0 MB a frame, the close-up 5.75 MB; TinyGL's default is 5 MB.
+    gfx_tinygl.cpp now gives Grim's context 16 MB (createContext's own
+    drawCallMemorySize argument). Proven from save 147: the scene plays through
+    (809-812). The phone uses the software renderer too, so this was a crash on
+    the phone as well. *Bench aid:* a walk tap now logs the sector it lands in
+    ("walk to floor_5 (x, y, z)").
+
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
 Now **data/hotspots/hand.txt** lists every outline fixed by hand (set, setup,
@@ -267,6 +284,92 @@ lines. Every new hand fix needs its line there.)
   proof game's; read state right after the load (`OBS_WAIT`).
 
 ---
+
+## Physical checks for Simon
+
+*Asked by Simon (15-16 Nov 2026): "is everything physically doable?" The bench
+taps exact game pixels with machine timing; on the phone the whole screen is a
+trackpad: a finger slides the pointer, then taps. Sizes are in 640x480 game
+pixels, and roughly on a 6.1" iPhone (1 game px = about 2.5 pt; Apple's
+comfortable touch target is 44 pt, about 18 game px, but here the finger aims
+the pointer, so the limit is how finely a slide places it, not the fingertip).
+Each has a save made just before it in build/for-simon (README.md lists them).*
+
+P1. **The tree pump (tr, Year 1).** Target: a hose strip under the barrow's
+    path, about 0.1 units long (the barrow's travel crosses each in some 0.1-0.15
+    of rail, a few px on screen), but the player taps along the rails (a big
+    target) and the timing is what matters. Window: leave a hose during the
+    0.5 s before its partner pump strikes; a pull leaves the hose 0.35-0.5 s
+    after the tap (the walk winds up), a push about 0.75 s after. So the tap
+    lands in a window of about 0.35 s, read off the pistons on the tree.
+    Gesture: tap along the rails (push/pull), as moments.md 6. Saves 36 (before
+    the left pair), 37 (left pair set). **Likely too hard** (the bench needed a
+    second try with a stopwatch on the pistons, and a person has to work out
+    which piston is which). It is the 1998 puzzle and the 1998 timing; what the
+    pointer adds is the wind-up (0.35-0.5 s, varying) between tap and leaving
+    the hose, which a key press also had. Suggested fix within the laws: none in
+    the rule itself (law 2); on the phone, a press held on the rails could be the
+    1998 key held (as the extinguisher's hold is), so the barrow moves while the
+    finger is down and stops when it lifts: the player times the lift, which is
+    exactly the original's timing with no wind-up guesswork. For Simon.
+P2. **The beavers (bd, Year 1).** Target: the tar (setup 1: 303-634 x 109-253,
+    330 x 145 px, about 825 x 360 pt): easy. Window: about 10 s from the throw to
+    the beaver's dive, in which the pointer comes back (~2 s), the coat opens
+    (~2 s; a tap in its first second or two is ignored), one step per item to the
+    extinguisher (~2.3 s each), take it (~3.5 s), then press and hold (0.4 s to
+    count as a hold) until it freezes. Gesture: tap the tar with a bone (throw),
+    tap Manny (coat), the coat's thirds, press and hold over the tar. Save 38.
+    **Tight:** with the extinguisher one step from the bone it fits with 1-2 s
+    spare; two steps away it doesn't. The game helps: the coat opens on the item
+    last put away, so after the first try the extinguisher is the first thing
+    shown. A miss costs nothing (throw another bone). Suggested fix within the
+    laws: none needed; say it in the hints ("have the extinguisher last in the
+    coat").
+P3. **The waiter (hk, Year 2).** Target: the pantry doors (36 x 164 px, about
+    90 x 410 pt): easy. Window: he comes every 20-27 s and is inside some
+    seconds; close the doors by a tap while he's in, then the scythe on them.
+    Gesture: tap, then the coat, scythe, tap the doors. Save 39. OK (a miss
+    waits for his next trip).
+P4. **The forklift's lanes (de, Year 2).** Target: lining the forks up with a
+    lane in the elevator (fork_box2 and fork_box3, 0.07 units wide: from above,
+    setup 1, 6 x 11 px, about 15 x 28 pt); the forklift arrives within 0.06 of
+    a tap (fix 21) and a tap it's already at turns it to face the tap. Window:
+    after the button, the elevator moves; the forklift must be driven through
+    the window and pushed at the hidden floor (several seconds). Gesture: taps
+    to drive and turn, a tap on the seat to get off. Save 40. **Likely too
+    hard:** a tap has to land within about 3 px either side of a lane's line, by
+    sliding the pointer; on the bench it took several turns (739-750). Suggested
+    fix within the laws: a tap within some 12 px of a lane goes to the lane's
+    own centre (the lanes are the game's sectors, fork_box2/3, law 1), so the
+    finger only has to be near it; the drive itself stays the game's keys.
+P5. **The sign in the clearing (na, Year 1).** Target: the spot (na.rubacava_point,
+    within 0.6 units: about 16 px on screen, about 40 pt). Window: none. Gesture:
+    tap the floor to walk there, tap Manny (plant). Save 41. OK, but the spot is
+    unmarked (it's the riddle); fine as the 1998 puzzle.
+P6. **Naranja's bottle (si, Year 2).** Targets: the fridge, the crisper (206 x
+    246 px), the bottle (setup 1: 169 x 130 px): easy. Window: the fridge's motor
+    starts 10 s after the fridge opens; Toto then yells and looks away for about
+    5 s plus his line; the baster on the bottle must be used before he shuts the
+    fridge (from the crisper opening to that, some 15-20 s; the bench used 13 s,
+    coat included). If used early, the game waits for the distraction itself.
+    Gesture: taps, the coat (two steps at most), a tap on the bottle. Save 42. OK.
+P7. **The blimp desk's metal detector (sl, Year 2).** Target: the detector's
+    box on the floor (the sector detector_box: a slanted 70 x 33 px patch, about
+    175 x 80 pt), or any floor beyond the gate (Manny walks through it). Window:
+    10 s from the end of the drink to the burp. Gesture: the coat, the liqueur,
+    tap Manny (drink), swipe up (put it away), tap the floor beyond the gate.
+    Save 43. OK on time (about 3-5 s needed). **A snag a person will hit:** a tap
+    on the gate itself is the game's own `sl.gate.use`, which walks Manny to
+    (0.154, -0.297), 0.003 short of the box, so nothing happens and the time
+    runs out (the bench did exactly that: shots i1-i9, k3-k9). In 1998 the same
+    U stopped short too; players walked through. Suggested fix within the laws:
+    none in the scripts; the hints should say "walk through it". For Simon: or
+    the gate's use point could be read as "walk through" (it's 3 mm off the box),
+    which would be a bent law 2.
+P8. **The bench's other tight spots, checked and fine:** the rope throw on the
+    ledge (a tap anywhere in the sky), the extinguisher's hold (0.4 s anywhere
+    on the tar), the roulette room's door (fix 20), the bridge lever (wait for the
+    bridge), the dialogue rows (21 px apart, about 52 pt).
 
 ## Questions for Simon
 
@@ -509,28 +612,68 @@ lines. Every new hand fix needs its line there.)
   The suitcase (771-773); the union card's cut scene runs on (774-775). **Save
   146** (Manny with the suitcase, the hidden hall).
 
-## Resume here (after the fifth session, 15 Nov 2026)
+### Year 2: Seaman Naranja (seventh session, 15-16 Nov 2026)
 
-- **Save 146** (build/bench/saves/grim146.gsv): Year 2, the union card's
-  suitcase taken, Manny in the hall past the hidden floor (the cut scene may
-  still be running on load: wait for the bone cursor).
-- Start: `tools/proof/cycle.sh 146 nosave`. Steps: `tools/proof/g.py '<json>'`.
+- **tb, tw, ts, tx, xb, hb, bw, be, bi** (from save 146). Back through the
+  betting hall, down to the dock, over the bridge, the hub, the Blue Casket
+  (776-799). The microphone's outline took a floor tap (fix 22, 800-802). Save
+  147. At the back, Lola and Olivia: the game quit (fix 23, 805-808); after it,
+  Olivia: "Well, catch ya later, hep chick" (809-812). Save 148.
+- **bk, the kitchen.** The coat, the baster, a tap on the sink: filled from the
+  dishwater (813-820). P. Save 149.
+- **xb, se: to Toto's.** The sea dock is reached from xb's track end: down the
+  stairs to the pier (setup 3), then a tap at the dock end (565,320 on setup 4)
+  walks Manny through the game's corridor into se (848). Not a fault: a tap
+  by the lamp post lands in a sliver of floor beyond the corridor ("No path
+  found"). Save 150. The hatch: down into **si** (849-851).
+- **si: Naranja.** The back room. Fridge, crisper, the coat (the baster), a tap
+  on the bottle: Manny waits for Toto to yell at the fridge and doses the
+  bottle (857-870); Naranja drinks and drops (871-873). Save 152. A tap on the
+  cot: the dog tags (877). P.
+- **se, xb, tx, ts, tb, gt, sl: the blimp desk** (878-889). Save 153. The coat,
+  the liqueur, a tap on Manny: he drinks; P. **A tap on the gate does not take
+  him through** (the game's own sl.gate.use walks him 3 mm short of the
+  detector's box; i1-i9, k3-k9; physical check P7); **a tap on the floor
+  beyond it does** (341,239, inside detector_box): searched, the burp (m0-o7).
+  Carla: "Hey, Carla, that's an awfully nice metal detector you have", "Yes"
+  (902-904). Save 154.
+- **ks: the litter box.** A tap on the treasure spot (342,392), the coat, the
+  scythe, a tap on the litter in front: "Ah-ha!", the detector dug out (912-917,
+  u1-u6). Save 156.
+- **xb, hb, bw, dd, ev, pc, mg: the morgue.** The elevator tower is reached
+  through the dry dock (dd's 'right'); its 'down' to the plaza (pc); the morgue
+  door (pc setup 1). Save 157. The dog tags on corpse 1; the detector on
+  Membrillo: Naranja is dead; the cut scenes (935-944). **Save 158** (Manny
+  outside the morgue, pc).
+
+## Resume here (after the seventh session, 16 Nov 2026)
+
+- **Save 158** (build/bench/saves/grim158.gsv): Year 2, Seaman Naranja done,
+  Manny outside the morgue in the plaza (pc). Start: `tools/proof/cycle.sh 158
+  nosave`, then wait for the plain cursor. Steps: `tools/proof/g.py '<json>'`.
+- Next (the walkthrough, Year 2 "SeaBee Tools"): Salvador's letter (Manny's
+  office, cf) on the Blue Casket's beatniks, the book, the book on the bees;
+  Nick in the VIP lounge: "Nick, I need a lawyer", "Friend of mine is in the
+  slammer", "An excellent lawyer", "The very best is good enough for me", "You
+  are, Nick"; again: "Virago, I REALLY need a lawyer", "I could tell Max about
+  you and Olivia"; the cigarette case on Carla ("I don't know. I found it under
+  your desk", "Yes"): the key; the lighthouse door, the card; the card on Lupe:
+  the jacket; the jacket used on its own (a tap on Manny): the paper; the paper
+  to Toto; the ticket printer: Week 2, Tuesday, Race 6, at the Photo Finish
+  window; the photo on Nick. Then "Betting the Farm" (the roulette panel in
+  Manny's office: the magnet when the right wheel's light is red) to the end of
+  Year 2.
+- Routes: the sea dock (Toto's) from xb's track end, down the pier stairs, then
+  the dock end at 565,320; the elevator tower (morgue, plaza) via dd's 'right'.
+- Physical checks: every timed or precise moment from here gets an entry in
+  "Physical checks for Simon" and a save in build/for-simon (next slot 44).
 - Held items: a tap on Manny uses it on its own; `{"key":"p"}` stands in for
-  the swipe up (put away).
-- Next (the walkthrough, Year 2 "Seaman Naranja"): the Blue Casket, Olivia
-  ("Well, catch ya later, hep chick"), the kitchen: the baster in the
-  dishwater; Toto's shack: fridge, crisper, the baster on Naranja's bottle;
-  his dog tags; the blimp security desk (the liqueur, through the detector),
-  Carla; the litter box ledge, the scythe on the letter box (the detector); the
-  morgue. Then "SeaBee Tools" and "Betting the Farm" to the end of Year 2.
-- Known ahead: the roulette panel (moment, cf), the conveyor belt's invented
+  the swipe up (put away). The coat opens on the item last put away.
+- Known ahead: the roulette panel (moment 12), the conveyor belt's invented
   `cy.offbelt` (Year 3), the lighthouse top.
-- Bench notes: a tap on Manny's own drawn box is the coat; dialogue lines are
-  tapped at x 90, rows y 396/418/439/461. A double tap whose first tap lands on
-  Manny opens the coat and the second takes the item in the middle: aim runs
-  away from him.
-- Reading state: observer runs (`tools/proof/qq.sh <slot> <lua>`), never the
-  proof game.
+- Bench notes: dialogue lines at x 90, rows y 396/418/439/461 (a two-line list
+  sits at 439/461). Reading state: observer runs (`tools/proof/qq.sh <slot>
+  <lua>`), never the proof game.
 - The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
   in ~/Developer/pointyclicky-build; the FreeType lines are in both config.mk
   (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib -lfreetype -lz
@@ -538,5 +681,6 @@ lines. Every new hand fix needs its line there.)
 - engine/grim_edition.patch is cut against ScummVM 2026.4.0 +
   grim_pointyclicky.patch alone (build/proof-bench/patchgen holds that base;
   the room adapter's grim.cpp/grim.h/module.mk changes are left out). This
-  session's hotspotman.cpp/.h sections were re-cut from it and the whole patch
-  checked with `git apply` on a copy of the base.
+  session: the old patch applied to a copy of the base, this session's two
+  engine changes (hotspotman.cpp, gfx_tinygl.cpp) copied over, cut as a git
+  diff in a scratch repo, and checked with `git apply --check` on a fresh copy.

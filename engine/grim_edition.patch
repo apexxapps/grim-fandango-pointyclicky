@@ -404,6 +404,23 @@ index c86b5c3..3e7b31a 100644
  		va_list args;
  		va_start(args, s);
  		Common::String buf = Common::String::vformat(s, args);
+diff --git a/engines/grim/gfx_tinygl.cpp b/engines/grim/gfx_tinygl.cpp
+index 5f7804b..6a152ca 100644
+--- a/engines/grim/gfx_tinygl.cpp
++++ b/engines/grim/gfx_tinygl.cpp
+@@ -86,7 +86,11 @@ void GfxTinyGL::setupScreen(int screenW, int screenH) {
+ 
+ 	_pixelFormat = g_system->getScreenFormat();
+ 	debug(2, "INFO: TinyGL front buffer pixel format: %s", _pixelFormat.toString().c_str());
+-	TinyGL::createContext(screenW, screenH, _pixelFormat, 256, true, ConfMan.getBool("dirtyrects"));
++	// PointyClicky Edition (proof playthrough, 15 Nov 2026): a frame's draw calls
++	// get 16 MB, not TinyGL's default 5 MB. The Blue Casket's full house takes
++	// some 4 MB a frame, and with Lola and Manny in close-up it ran out, which
++	// stopped the game (TinyGL's error() on the linear allocator).
++	TinyGL::createContext(screenW, screenH, _pixelFormat, 256, true, ConfMan.getBool("dirtyrects"), 16 * 1024 * 1024);
+ 
+ 	_storedDisplay = new Graphics::Surface;
+ 	_storedDisplay->create(_gameWidth, _gameHeight, _pixelFormat);
 diff --git a/engines/grim/grim.cpp b/engines/grim/grim.cpp
 index 7df0c64..f1d3539 100644
 --- a/engines/grim/grim.cpp
@@ -550,6 +567,7 @@ index 0ac3cff..343d626 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
+index f6552fb..ec87716 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -565,7 +583,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  
  void HotPolygon::draw(const Color &col) {
  	for (uint i = 0; i < _pnts.size(); i++) {
-@@ -180,13 +182,28 @@
+@@ -180,13 +182,28 @@ bool HotspotMan::raycast(int x, int y, Math::Vector3d &r0, Math::Vector3d &r1) {
  	return true;
  }
  
@@ -595,7 +613,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	ConfMan.registerDefault("grim_mouse_debug", false);
  	ConfMan.registerDefault("grim_mouse_names", false);
  	_showDebug = ConfMan.getBool("grim_mouse_debug");
-@@ -208,17 +225,18 @@
+@@ -208,17 +225,18 @@ static Common::String readString(Common::SeekableReadStream *data) {
  	return s;
  }
  
@@ -619,7 +637,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  		list.clear();
  		int numHS = data->readSint32LE();
  		for (int j = 0; j < numHS; j++) {
-@@ -245,11 +263,66 @@
+@@ -245,11 +263,66 @@ void HotspotMan::initialize() {
  		}
  	}
  	delete data;
@@ -686,7 +704,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  void HotspotMan::loadFlashBitmaps() {
  	for (int i = 0; i < 8; i++) {
  		Common::String fn = Common::String::format("cursor%d_hl.tga", i);
-@@ -318,7 +391,9 @@
+@@ -318,7 +391,9 @@ void HotspotMan::drawActive() {
  		}
  	}
  
@@ -697,7 +715,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  		const int dx = 4;
  		int num_rows = _inventory.empty() ? 1 : (_inventory.size() - 1) / _cols + 1;
  		int x1 = _x0 + _w * _cols, y1 = _y0 + _h * num_rows;
-@@ -354,6 +429,16 @@
+@@ -354,6 +429,16 @@ void HotspotMan::drawActive() {
  			if (hotspots[i]._setup == setup || _ctrlMode == Options)
  				hotspots[i]._region.draw(Color(0, 200, 200));
  		}
@@ -714,12 +732,10 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -398,6 +483,109 @@
- 	double a = x1.dotProduct(x1), b = -x1.dotProduct(y1), c = y1.dotProduct(y1);
- 	double d = -x1.dotProduct(x0 - y0), e = y1.dotProduct(x0 - y0);
+@@ -400,6 +485,109 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
  	return (c * d - b * e) / (c * a - b * b);
-+}
-+
+ }
+ 
 +// PointyClicky Edition (15 Nov 2026): characters' live outlines. An object the
 +// game ties to a character (mouse.lua links X_obj to actor X) is found where the
 +// character is drawn this frame (its costume's box on screen), not on a fixed
@@ -821,10 +837,12 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 +		return gid;
 +	}
 +	return -1;
- }
- 
++}
++
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
-@@ -443,30 +631,41 @@
+ 	if (!g_grim->getCurrSet())
+ 		return;
+@@ -443,30 +631,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -884,7 +902,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,8 +696,9 @@
+@@ -497,8 +696,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
@@ -895,7 +913,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  			LuaObjects objects;
  			objects.add(button);
  			objects.add(gid);
-@@ -587,9 +787,12 @@
+@@ -587,9 +787,12 @@ void HotspotMan::hover(const Common::Point &pos) {
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
@@ -910,7 +928,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +812,31 @@
+@@ -609,6 +812,31 @@ void HotspotMan::hover(const Common::Point &pos) {
  		}
  	}
  
@@ -942,7 +960,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +844,9 @@
+@@ -616,16 +844,9 @@ void HotspotMan::hover(const Common::Point &pos) {
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -962,7 +980,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -645,6 +866,42 @@
+@@ -645,6 +866,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
  	return Common::Point(x, y);
  }
  
@@ -1005,7 +1023,15 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
  	Math::Vector3d r0, r1;
  	if (!raycast(cursor.x, cursor.y, r0, r1))
-@@ -698,6 +955,8 @@
+@@ -679,6 +936,7 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+ 			if (!sector->raycast(r0, r1, v))
+ 				continue;
+ 			if (sector->isPointInSector(v)) {
++				debug(1, "Grim Mouse: walk to %s (%.2f, %.2f, %.2f)", sector->getName().c_str(), v.x(), v.y(), v.z());
+ 				LuaObjects objects;
+ 				objects.add(button);
+ 				objects.add(doubleClick ? 1 : 0);
+@@ -698,6 +956,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -1014,7 +1040,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +1017,17 @@
+@@ -758,6 +1018,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -1032,7 +1058,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +1082,16 @@
+@@ -812,6 +1083,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -1049,12 +1075,10 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -917,6 +1197,1196 @@
- 		_icons[pic] = it._bmp;
- 	}
+@@ -919,4 +1200,1194 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
-+}
-+
+ }
+ 
 +// ---- The vehicles: tap where to go ------------------------------------------
 +//
 +// PointyClicky Edition (docs/moments.md, lines 1-5; Simon, 15 Nov 2026: "the
@@ -1874,8 +1898,8 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 +	Common::KeyCode want = togo > 0 ? _momFwd : _momBack;
 +	momentHold(want == _momFwd ? _momBack : _momFwd, false);
 +	momentHold(want, true);
- }
- 
++}
++
 +// The broadaxe: Manny drags it backwards, so a tap on the floor is turned to
 +// (his back to it: Left or Right held), then backed to (Down held).
 +void HotspotMan::axeUpdate() {
@@ -2247,6 +2271,7 @@ diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
+index 9d342ba..62db2f9 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2265,7 +2290,7 @@ diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
  class Bitmap;
  class SaveGame;
  
-@@ -61,6 +63,17 @@
+@@ -61,6 +63,17 @@ struct HotObject {
  	Math::Vector3d _pos;
  	Common::Rect _rect;
  	bool _active;
@@ -2283,7 +2308,7 @@ diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
  };
  
  struct MouseHotspot {
-@@ -88,6 +101,9 @@
+@@ -88,6 +101,9 @@ public:
  	void disableAll();
  	HotObject *getObject(int idx) { return idx >= 0 && idx < (int)_hotobject.size() ? &_hotobject[idx] : nullptr; }
  
@@ -2293,7 +2318,7 @@ diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
  	void initialize();
  	void event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick);
  	void hover(const Common::Point &cursor);
-@@ -111,7 +127,40 @@
+@@ -111,6 +127,39 @@ public:
  	void setOptionMode(const Common::String &name) { _curOption = name; }
  	const Common::String &getOptionMode() const { return _curOption; }
  	Common::Point mannyPos2D(float zOffset);
@@ -2306,7 +2331,7 @@ diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
 +	 */
 +	bool tapOnManny(const Common::Point &p);
 +	Common::String mannyDrawn();
- 
++
 +	/**
 +	 * PointyClicky Edition, the vehicles (docs/moments.md, lines 1-5): while
 +	 * the game's own handler for the Bone Wagon, the forklift, the tunnel ride
@@ -2330,11 +2355,10 @@ diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
 +	 */
 +	bool momentEvent(const Common::Event &ev, const Common::Point &cursor);
 +	void momentUpdate();
-+
+ 
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
- 
-@@ -127,10 +176,72 @@
+@@ -127,10 +176,72 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
