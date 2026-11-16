@@ -1,8 +1,9 @@
 # The proof playthrough (PLAN.md phase 5, item 2)
 
-*Started 15 Nov 2026. In progress: from a new game through Years 1, 2 and 3
-(to Domino's end) into Year 4. Not yet at the credits. Resume from save 218
-(build/bench/saves/grim218.gsv; see "Resume here" at the end).*
+*Started 15 Nov 2026. **Done 16 Nov 2026: from a new game to the end credits**,
+Years 1 to 4, by pointer only (shot 2038: the credits). Forty-three fixes on the
+way; seventeen physical checks for Simon (build/for-simon, slots 36-52). What is
+left is in "After the credits" at the end.*
 
 **The bar.** The 1998 game from a new game to the end credits on the Mac
 bench, using only what a player on the phone has: tap, two-finger tap (look),
@@ -323,6 +324,75 @@ Each: where, what was wrong, the fix, the shots. Outline coordinates are
     (1659-ax4); then back to the secret door and, in the secret room, onto the
     tile and away from it facing it, the drop: the tile breaks (1669-1679).
 
+33. **my, setup 1 (the room under the tracks), the oil drums (mytx034).** The
+    outline ran a strip over the whole floor along the bottom of the screen (0 to
+    639, y 356-478), so with the rag in hand every tap on the floor down there
+    was "tap on oil drum" and Manny walked back to the drums (1736-1737). Redrawn
+    round the two drums (x 205-294, y 334-440); in hand.txt. Proven: the same tap
+    walks (1739).
+34. **Engine: a character's outline over another thing's** (xb, Year 4: Glottis
+    by the garage doors). Glottis's outline in xb covers the whole track end with
+    the garage doors inside it, and since fix 28 a character's outline takes taps
+    while the character is drawn over it: every tap on the doors was "tap on
+    Glottis" (1781-1783). hotspotman.cpp `outlineYields`: a tap outside the
+    character's drawn box goes to any other object outlined there; only where
+    nothing else is does the character's own outline take it (Lupe's window
+    still works: nothing else is outlined there). Proven: "tap on doors" (1785).
+35. **xb, Year 4: the garage doors did nothing** (a dead end: the way to the
+    Bone Wagon and the gelatin). The doors are open (no out point), so the game's
+    Sentence("walkOut") walks to their use point and wants Manny in the door's
+    box (jb_door); the use point is 1.5 cm outside it, so every time "Didn't make
+    it to the door's box" (1786; observer run of save 226). The 1998 player walked
+    on into the box. mouse.lua `walk_and_do`: after a walkOut that leaves Manny
+    outside an open door's box, a step 0.15 on from the use point the way the game
+    faces him there, and if that puts him in the door's box, the door's own
+    walkOut. Proven from save 226: into the garage (1787), and again later (1803).
+36. **jb, setup 0, the dominos (jbtx056): the gelatin could not be frozen.**
+    The outline was a sliver 35 x 8 px on the far side of the room; the dominos
+    the game lays out (the floor sector sect_2, x 66-248 on screen) had none, so
+    a tap on them with the liquid nitrogen walked, "No path found" (1805).
+    Redrawn over the domino field as the game lays it; in hand.txt. Proven: the
+    nitrogen on the dominos, the gelatin frozen (1806-1811).
+37. **th, setup 0 (backstage), the coffee pot and the Thunder Boys.** The right
+    Thunder Boy's outline covered the whole stage and the coffee pot's top, so a
+    tap on the pot was "tap on Thunder Boy" (1833). Both Thunder Boys redrawn round
+    themselves, the pot round the pot as drawn; in hand.txt. Proven: the pot taken
+    (1835-1836).
+38. **ly, setup 2 (the casino floor), the slot machine (lytx112).** A band over
+    the whole floor (x 18-588), the gambler and Meche included, so a tap on the
+    soldier in the trench coat was "tap on slot machine" (1859). Redrawn round the
+    machine; in hand.txt. Proven: the soldier talks (1860).
+39. **ly, the men's room and the service door: no way back to the basement.**
+    Both doors are "/lytx120/door"; the outlines all had the first id, so the
+    service door's outline on setup 1 and the only door outline on setup 6 were the
+    men's room's, and from the men's room a tap on the way back out walked straight
+    back in (1872-1874). The service door gets its own id (lytx120_1, the engine's
+    name for the second) on setups 1 and 6, and each door its own outline on setup
+    6; in hand.txt (with the men's room's setup 1 line, which a hotspots.py re-run
+    otherwise doubles). Proven: through the service door to te (1876).
+40. **at, setup 2 (the sewer tunnel), the Bone Wagon (attx003).** Its outline
+    ran over the ladder and the whole floor to the catwalk, so once Manny was on
+    the catwalk a tap on the way to the ladder was "tap on Bone Wagon": its use
+    jumped him back on the wagon (1929). Redrawn round the wagon; in hand.txt.
+    Proven from save 260: along the catwalk to the ladder (1930-1931).
+41. **Engine: the coat could not be opened in the florist's doorway** (fi). The
+    test that an outlined thing nearer the camera wins over Manny (fix 8) compared
+    the door's point, half way up the door, with Manny's feet; from a camera above,
+    the door's point is nearer the lens than his feet in front of it, so every tap
+    on him was the door (1942-1943). hotspotman.cpp `tapOnManny`: Manny is taken
+    at the thing's own height for that test. Proven: the coat (1944), the scythe
+    on the ball of tape (1945).
+42. **fp, setup 1, the florist's door (fptx005) and the left flowerbox
+    (fptx004).** Only the door's right half was outlined; the flowerbox ran over
+    the window and the door's left half, so a tap on the door was "tap on
+    flowerbox" (1947). Both redrawn; in hand.txt. Proven: into the shop (1948).
+43. **me, setup 0, Salvador in the back seat: no way to reach him.** He has no
+    outline on this angle (the hotspot is on setup 5 only), and the car's outline
+    covers him as drawn, so a tap on him was "tap on car" ("locked", 2003-2004).
+    The car's outline has a notch where he is drawn, so the engine finds him as
+    drawn (his actor is linked); in hand.txt. Proven: Salvador's goodbye
+    (2014-2016).
+
 (NB `tools/hotspots.py` rewrites data/hotspots from the traces. Checked 15 Nov
 2026: a re-run undid most of these (a trace that passes its checks always won).
 Now **data/hotspots/hand.txt** lists every outline fixed by hand (set, setup,
@@ -535,6 +605,36 @@ P13. **The broadaxe drop on the tile (vi, Year 3).** Target: Manny has to stand
     Manny. Save 48 (proof save 214, in the secret room with the axe). OK but
     unmarked: the tile is the one the water drained through; a person has to
     work out "stand back from it, facing it". Fine as the 1998 puzzle.
+
+P14. **Charlie and the soldier (ly, Year 4, the casino).** Target: the soldier
+    in the trench coat (setup 2: about 190 x 210 px, after fix 38): easy. Window:
+    after the sheet on Charlie he leaves the table for the men's room and is back
+    after some seconds; the soldier has to be talked to before that ("then quickly
+    talk to the soldier"). The bench tapped him some 10 s after the sheet went on
+    Charlie (1864-1869). Gesture: the coat, the sheet, tap Charlie; tap the soldier. Save
+    49 (proof save 245). OK.
+P15. **The elevator demon's question (ly, Year 4).** Target: a floor in the
+    elevator's scrolling list (rows 21 px apart, about 52 pt). Window: none, but
+    the answer is the last number up on the keno board, which changes; read it off
+    the board on the way in. The bench read it (14) and scrolled the list by its
+    last row and the row above (1955-1958). Gesture: taps on the list. Save 50
+    (proof save 269). OK; the list's way back up is unmarked (moments.md 23).
+P16. **The sewergator (at, Year 4).** Targets: the Bone Wagon (raised by the
+    remote) driven up to the catwalk (the game stops it at the right place, "close
+    enough"), the catwalk, the ladder, then the remote used on its own while the
+    gator has turned towards Manny. Window: the gator turns while Manny is on the
+    ladder; the remote then drops the wagon on its tail. The bench did it at the
+    first try (1921-1935). Gesture: taps on the tunnel and the wagon (moment 5),
+    the catwalk, the ladder, the coat, the remote, a tap on Manny. Save 51 (proof
+    save 259). OK; a lot of steps, all of them the 1998 ones.
+P17. **The ticket hunt behind the greenhouse (me, Year 4).** Target: Salvador's
+    body behind the greenhouse, which the ticket in Manny's hand pulls towards
+    within about 3 units and flies to within 0.5. Window: none. From the car the
+    camera is far (setup 0): Manny is some 5 px tall on the hill, and taps on the
+    way up landed short twice (2019-2024); behind the greenhouse (setup 5) it is
+    easy. Gesture: taps on the floor, then the body. Save 52 (proof save 290).
+    **Fiddly on the far camera**, fine once round the back. Suggested: none in the
+    rule; the hints should say "round the back of the greenhouse".
 
 (Also met, not timed: the porthole anchor (dp) can't be hooked while Manny is
 still walking in, about 7 s after entering: a tap then says nothing and does
@@ -910,35 +1010,88 @@ a save just after, worked (1688-1695). Neither stops the game.)
   1692-1695): Domino's end. **End of Year 3.** Year 4 begins at the Petrified
   Forest's edge, the Number Nine (1696-1698). **Save 218.**
 
-## Resume here (after the ninth session, 16 Nov 2026)
+### Year 4 (tenth session, 16 Nov 2026)
 
-- **Save 218** (build/bench/saves/grim218.gsv): Year 4 has begun (the tower at
-  the edge of the world, after Domino's end). Start: `tools/proof/cycle.sh 218
-  nosave`, then wait for the plain cursor. Steps: `tools/proof/g.py '<json>'`.
-- Next (the walkthrough, build/proof-bench/wt/jeff.txt "B. Year Four
-  Walkthrough", from line 1906): Glottis under the tracks, the packing foam, the fire, to
-  the end credits.
-- Physical checks: every timed or precise moment gets an entry in "Physical
-  checks for Simon" and a save in build/for-simon (next slot 49).
-- Held items: a tap on Manny uses it on its own; `{"key":"p"}` stands in for
-  the swipe up (put away). The coat opens on the item last put away; Skip (the
-  bench's `{"key":"esc"}`) closes it.
-- Bench notes (as before): dialogue lines at x 90, rows y 396/418/439/461.
-  Reading state: observer runs (`tools/proof/qq.sh <slot> <lua>`, whose wait
-  after the Lua is now 3 s; or `tools/proof/observe.py` with a json of steps
-  and `OBS_WAIT`), never the proof game. Which set: an observer Lua printing
-  `system.currentSet.setFile`. A moment that shows up only by light (Chepito):
-  the daemon's `onbeat` on a crop's brightness.
-- The iOS libraries: `ScummVMKit/build-lib.sh sim|dev ./scummvm ./build-sim|dev`
-  run in ~/Developer/pointyclicky-build, with the app repo's ScummVMKit (its
-  default out-dir is the app's ScummVMKit/lib). The FreeType lines are in both
-  config.mk (`INCLUDES += -I<deps>/include/freetype2`, `LIBS += -L<deps>/lib
-  -lfreetype -lz -lbz2`); a reconfigure loses them. The shared tree carries the
-  app's bladerunner_fixes.patch (checked with `git apply --check -R`): keep it.
-- engine/grim_edition.patch is cut against ScummVM 2026.4.0 +
-  grim_pointyclicky.patch alone (build/proof-bench/patchgen, at its HEAD). This
-  session: a clone of the base, the old patch applied, every patched file but
-  hotspotman.cpp/h checked identical to the shared tree (grim.cpp and grim.h
-  included), hotspotman.cpp/h copied over, cut as a git diff, checked with `git
-  apply --check` on a fresh clone. The app's ScummVMKit/patches copy is the
-  same file.
+- **tg, td, bs, my: saving Glottis** (from save 218). Down to the trucks, the
+  coffin: Bruno, the mug (1699-1704). P. Up the tower: the Hell Train, the Gate
+  Keeper's note (1705-1714). P. Under the tracks: Glottis: "What can I get you?",
+  "Can't we make a new hot rod?" (1716-1725). Save 219. **mk**: the mug on the
+  rack, the drawer twice: the rag (1726-1732). **my**: the rag on the oil drum
+  (fix 33, 1736-1739). **mk**: the rag on the toaster: the fire, the mechanics,
+  the mug's rocket flight (1740-1744); Glottis fuelled, the drive to Rubacava
+  (1745-1747). Save 222.
+- **xb, hb, lm, bw, be, bi, bk: the Bone Wagon.** The hub, the Limbo dock:
+  Velasco, the bottle (1749-1755). The Blue Casket's kitchen: the bottle on the
+  keg (1757-1765). Save 223. Back to Glottis with the gelatin; his talk (1766-
+  1780). Save 224. The garage doors (fixes 34, 35; 1781-1787). Save 227. **se,
+  si**: Toto's cabinet: the liquid nitrogen (1788-1797). Save 229. **jb**: the
+  nitrogen on the dominos (fix 36, 1803-1811). Save 232. The dynamite: the Bone
+  Wagon out, the escape (1812-1816). **End of Rubacava.**
+- **lw, nq: the new headquarters.** The arm off the soldier's remains (1818-
+  1819); Meche (1820-1821). Save 235.
+- **sh, te, th, dr: the disguise.** Up the ladders to backstage (1824-1832). Save
+  236. The coffee pot (fix 37, 1833-1836); up the ladder, the coffee on the
+  Thunder Boys (1837-1841). Save 240. Down, the pot back on the burner (1842-1843);
+  the dressing room: the makeup (1844-1845). Save 241. Up again, the arm on the
+  snow machine's grinder, the grinder taken (1846-1852). Save 242.
+- **ly: the soldier, Meche and Charlie.** The soldier twice (fix 38, 1856-1861);
+  Meche twice: the sheet (1862-1863). Save 245 (P14, slot 49). The sheet on
+  Charlie, the soldier at once: Charlie lured off (1864-1869). Save 246. The men's
+  room: the disguise (1870-1871). Save 247. The way back (fix 39, 1872-1876).
+- **nq: the gun from Bowlsley.** The photo from the wastebasket (1882-1883); the
+  note, then the photo on the pigeon (1884-1891); Bowlsley's flight (1892-1893).
+  Save 252. **lw, sh**: the remote (1894-1897). Save 253.
+- **sh, zw, at: the sewergator.** The wagon raised and lowered (the remote used
+  on its own), the grinder: the bone trail starts (1901-1910). Save 256. Down the
+  trail through zw, grinding (1911-1916). Save 257. At its end: the gator's tunnel
+  (1917-1920). Save 258. The tunnel ride: the remote (raised), up to the catwalk
+  (1921-1926). Save 259 (P16, slot 51). On the catwalk (1927-1928); to the ladder
+  (fix 40, 1929-1931), up a little, the remote: the tail pinned (1932-1935). Save
+  263. Down, out to **fp** (1936-1939). Save 264.
+- **fp, fi: the florist's.** In: Bowlsley hides (1940-1941); the coat in the
+  doorway (fix 41, 1942-1944), the scythe on the ball of tape: the store wrecked
+  (1945). Save 266. Back in (fix 42, 1946-1948): the gun and the ammo; out to sh
+  (1949). Save 268.
+- **te, ly, hf: meeting Hector.** Up to the casino floor (1950-1952). Save 269
+  (P15, slot 50). The elevator demon, 14 off the keno board (1953-1958). Save 271.
+  **hf**: Celso: "Actually, I work for Hector...", "The real question is...",
+  "What exactly are you saving your money for?", "Well, enough about you guys...",
+  "I just got back from the worst vacation..." (1960-1966); the cut scenes:
+  Hector's office, the tickets (1967-1970). Save 272.
+- **nl: Lady Luck.** On the ledge (1971-1975). The coat, the grinder on the
+  gargoyle; the coat, the Sproutella on it: the sign drops (1976-1987). Save 278.
+  The ladder: across, the tickets, Meche, the cut scenes to the meadow (1988-1989).
+  Save 279.
+- **me, mf: the final showdown.** The greenhouse door: Hector, shot (1990-1993);
+  the meadow: the grinder on the wound ("Eeeeh!"), the liquid nitrogen on it: the
+  poison stopped (1994-2001). Save 282. Salvador in the back seat (fix 43,
+  2003-2016). Save 289. The suitcase: the ticket hops to his flowers; the ticket
+  off them (2017-2018). Save 290 (P17, slot 52). Up the hill and round behind the
+  greenhouse; the ticket flies to Salvador's body; the body: the key (2019-2028).
+  Save 293. The car with the key: the gun (2029-2030). Save 295. Down to the water
+  tower, the gun on it: Hector's end (2031-2034). The greenhouse door (2035): the
+  ending (2036-2037) and **the end credits (2038-2039)**.
+
+## After the credits (the run done, 16 Nov 2026)
+
+- **The bar is met:** a new game to the end credits on the bench, every step by
+  tap, two-finger tap, double tap, press and hold, the coat by a tap on Manny,
+  Skip for cut scenes only (no keys), developer mode off in the proof game.
+  Bench stand-ins used: `{"key":"p"}` for the swipe up (put away), `{"key":"esc"}`
+  for Skip and for closing the coat.
+- **Last save:** build/bench/saves/grim297.gsv (Hector dying, before the
+  greenhouse door). Saves 50-297 are the run's.
+- **For Simon:** the physical checks P1-P17 (build/for-simon, slots 36-52, the
+  README there); the items marked "likely too hard" or "fiddly" are P1, P4, P11,
+  P12 and P17. Then phase 5 item 5: the sign-off on the phone.
+- **Left from the plan:** phase 5 item 3 (coverage: every object the game made
+  touchable reached by the pointer at least once) was not counted in this run;
+  the audit at zero (item 1) is separate.
+- Tools notes: tools/proof/notes.txt (one line per batch) and fixes.txt (one
+  line per fix).
+- The iOS libraries and engine/grim_edition.patch: as in the ninth session's
+  notes (build-lib.sh, the FreeType lines in both config.mk, the shared tree's
+  bladerunner_fixes.patch kept; the patch cut against ScummVM 2026.4.0 +
+  grim_pointyclicky.patch at build/proof-bench/patchgen, every file but
+  hotspotman.cpp/h checked identical to the shared tree, checked with
+  `git apply --check` on a fresh clone).

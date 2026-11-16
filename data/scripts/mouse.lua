@@ -200,7 +200,29 @@ walk_and_do = function(arg1, arg2, arg3, arg4, arg5) -- line 83
         end
     end
     if system.currentActor == manny or arg2.active_driving then
+        local set0 = system.currentSet
         Sentence(arg1, arg2, arg5)
+        -- PointyClicky Edition (proof playthrough, Year 4, 16 Nov 2026): an open
+        -- door with no out point whose use point stops just short of its box.
+        -- Sentence("walkOut") walks to the use point and wants Manny in the
+        -- door's box; xb's garage doors in Year 4 (jb_door) have their use point
+        -- 1.5 cm outside it, so a tap on them did nothing ("Didn't make it to the
+        -- door's box"). The 1998 player walked on into the box. So here: a step
+        -- on from the use point the way the game faces Manny there, and if that
+        -- puts him in the door's box, the door's own walkOut.
+        if arg1 == "walkOut" and system.currentActor == manny and cutSceneLevel <= 0 and system.currentSet == set0
+            and not arg2.out_pnt_x and arg2.use_pnt_x and arg2.use_rot_y and arg2.walkOut then
+            local bid, bname = manny:find_sector_type(HOT)
+            if system.currentSet[tostring(bname)] ~= arg2 then
+                local r = arg2.use_rot_y
+                manny:walkto(arg2.use_pnt_x - sin(r) * 0.15, arg2.use_pnt_y + cos(r) * 0.15, arg2.use_pnt_z)
+                manny:wait_for_actor()
+                bid, bname = manny:find_sector_type(HOT)
+                if cutSceneLevel <= 0 and system.currentSet == set0 and system.currentSet[tostring(bname)] == arg2 then
+                    Sentence(arg1, arg2, arg5, TRUE)
+                end
+            end
+        end
     else
         WalkActorForward(system.currentActor.hActor)
     end

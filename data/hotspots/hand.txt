@@ -21,3 +21,17 @@ lm 2 lmtx115   # proof F19: the bottle on Velasco's desk, round the bottle (it w
 lm 3 lmtx115   # proof F19
 bi 0 bitx415   # proof F22: the microphone, the stage only (it reached over the floor and a table right of the stage)
 ev 0 to        # proof F27: the stairs ('up') walk by the floor's left (up2's path); the straight walk clipped the elevator's box at the door
+my 1 mytx034   # proof F33: the oil drums, round the two drums (it ran a strip over the whole floor at the bottom)
+jb 0 jbtx056   # proof F36: the dominos, over the domino field as the game lays it (sect_2); it was a sliver 35 x 8 px
+th 0 thtx086   # proof F37: the coffee pot, the pot as drawn on the burners (its top was outside, under a Thunder Boy's outline)
+th 0 thtx095   # proof F37: the right-hand Thunder Boy, round him (it covered the whole stage and the coffee pot)
+th 0 thtx100   # proof F37: the left-hand Thunder Boy, round him
+ly 2 lytx112   # proof F38: the slot machine, round the machine the object is (it was a band over the whole floor, the gambler and Meche included)
+ly 1 lytx120     # proof F39: the men's room door (both doors are /lytx120/door; the trace gave this angle a second copy over the service door)
+ly 1 lytx120_1   # proof F39: the service door, its own id (both doors are /lytx120/door; the second is _1, so all three outlines were the men's room's)
+ly 6 lytx120     # proof F39: the men's room door, round the red door
+ly 6 lytx120_1   # proof F39: the service door, round the panelled door (it was the men's room's: a tap on the way back to the basement walked into the men's room)
+at 2 attx003   # proof F40: the Bone Wagon in the tunnel, round the wagon (it ran over the ladder and the whole floor, so a tap on the way to the ladder put Manny back on the wagon)
+fp 1 fptx005   # proof F42: the florist's door, round the glass door (only its right half was outlined)
+fp 1 fptx004   # proof F42: the left flowerbox, round the plants (it ran over the window and the door's left half)
+me 0 metx053   # proof F43: the car, a notch where Salvador is drawn in the back seat (the car took every tap on him, and he has no outline of his own on this angle)

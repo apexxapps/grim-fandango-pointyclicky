@@ -24,3 +24,14 @@ F29 mouse.lua: Object.rename keeps the game's string_name (Sentence finds use_<s
 F30 mouse.lua: cy.offbelt runs the jump box's walkOut at once (use_immediate) and is touchable only while Manny is on the belt; its walk up the belt let the running belt float him back to ac every time. Shots 1499-1508.
 F31 engine (hotspotman.cpp craneTap): a tap within 14 px of another track point is on the track even over the crane as drawn; at the crusher end every track tap lowered/raised. Shots 1546-1557.
 F32 engine (hotspotman.cpp broadaxe): a tap within 10 px of the screen's edge is a point 0.6 past it, ending when the camera changes; "there" 0.06 (was 0.25). vo's armour corner had no way out with the axe. Shots 1652-1663, 1669-1679.
+F33 my setup 1 (hand.txt): the oil drums' outline was a strip over the whole bottom floor; redrawn round the drums. Shots 1736-1739.
+F34 engine (hotspotman.cpp outlineYields): beside a character as drawn, its outline gives way to any other object outlined there (Glottis's outline in xb covered the garage doors). Shots 1781-1785.
+F35 mouse.lua walk_and_do: an open door with no out point whose use point stops short of its box: a step 0.15 on from the use point, then the door's walkOut if that is in the box (xb's garage doors, Year 4). Shots 1786-1787.
+F36 jb setup 0 (hand.txt): the dominos, over the domino field (sect_2); it was a 35 x 8 px sliver. Shots 1805-1811.
+F37 th setup 0 (hand.txt): the coffee pot and both Thunder Boys redrawn (the right one covered the stage and the pot). Shots 1833-1836.
+F38 ly setup 2 (hand.txt): the slot machine, round the machine (a band over the floor took the soldier and Meche). Shots 1859-1860.
+F39 ly setups 1 and 6 (hand.txt): the service door gets its own id (lytx120_1) and outline; all were the men's room's. Shots 1872-1876.
+F40 at setup 2 (hand.txt): the Bone Wagon, round the wagon (it ran over the ladder and the catwalk's way). Shots 1929-1931.
+F41 engine (hotspotman.cpp tapOnManny): an outlined thing nearer the camera wins only when nearer with Manny taken at its own height (the florist's door under a high camera took every tap on Manny). Shots 1942-1945.
+F42 fp setup 1 (hand.txt): the florist's door and the left flowerbox redrawn. Shots 1946-1948.
+F43 me setup 0 (hand.txt): the car's outline notched where Salvador is drawn in the back seat (no outline of his own there). Shots 2003-2016.

@@ -209,18 +209,22 @@ point where you want to go or what you want to work, and click.
    game from a new game to the credits, every action by moving the pointer
    and clicking (no keys). It needs a Grim state reader, which also gives
    Grim a walkthrough and NudgeAI hints.
-   **In progress (docs/proof.md):** played by pointer from a new game, Year 1
-   through El Marrow, the Petrified Forest, the beavers and Rubacava, all of
-   Year 2 and Year 3, into Year 4 (16 Nov 2026); thirty-two fixes on the way
-   (the Blue Casket quit the game: TinyGL's draw memory; eleven dead ends:
+   **Done (16 Nov 2026, docs/proof.md):** played by pointer from a new game to
+   the end credits, Years 1 to 4 (El Marrow, the Petrified Forest, Rubacava, the
+   Edge of the World, the return to the Land of the Dead), forty-three fixes on
+   the way (the Blue Casket quit the game: TinyGL's draw memory; dead ends:
    Copal's computer kept the pointer after it closed; the wheelbarrow's pull
    never ended; the roulette room's door; the forklift in the elevator;
    Velasco's card check left Manny in the Blue Casket; the lounge door's
    passages came back shut; Lupe's window took no card; the betting stub had
    lost its name for the photo window; the conveyor belt floated Manny away
    before he could step off; the crane at the crusher end only went up and
-   down; the broadaxe could not leave the vault's armour corner), and the
-   held-item gesture decided (a tap on Manny uses it on its own).
+   down; the broadaxe could not leave the vault's armour corner; Year 4's
+   garage doors stopped 1.5 cm short of their box; besides those, outlines in
+   the wrong place and engine rules for taps, Year 4's among them: a character's
+   outline gives way beside the character, and the coat under a high camera), the held-item gesture decided
+   (a tap on Manny uses it on its own), and seventeen physical checks for Simon
+   (build/for-simon).
 3. **Coverage**: during that run, every object the game ever made touchable
    was reachable by the pointer at least once.
 4. **Known faults**: Grim Mouse's crash at Domino's computer (#48), its

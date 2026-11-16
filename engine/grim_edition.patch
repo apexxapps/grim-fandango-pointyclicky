@@ -586,7 +586,7 @@ index 0ac3cff..9cfafa3 100644
  	void handleJoyAxis(byte axis, int16 position);
  	void handleMouseAxis(byte axis, int16 position);
 diff --git a/engines/grim/hotspotman.cpp b/engines/grim/hotspotman.cpp
-index f6552fb..7033ca0 100644
+index f6552fb..c1fd118 100644
 --- a/engines/grim/hotspotman.cpp
 +++ b/engines/grim/hotspotman.cpp
 @@ -42,10 +42,12 @@
@@ -751,7 +751,7 @@ index f6552fb..7033ca0 100644
  	}
  
  	// grim_mouse_names=true: the name of what's under the pointer, above it.
-@@ -400,6 +485,128 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
+@@ -400,6 +485,156 @@ static double lineLineDist(const Math::Vector3d &x0, const Math::Vector3d &x1,
  	return (c * d - b * e) / (c * a - b * b);
  }
  
@@ -796,6 +796,33 @@ index f6552fb..7033ca0 100644
 +	for (uint i = 1; i < region._pnts.size(); i++)
 +		r.extend(Common::Rect(region._pnts[i].x, region._pnts[i].y, region._pnts[i].x + 1, region._pnts[i].y + 1));
 +	return !r.intersects(a->_screenBox);
++}
++
++// PointyClicky Edition (16 Nov 2026, the proof playthrough, Year 4): beside
++// the character as drawn, its outline gives way to another thing's. Glottis
++// standing by the garage doors in xb (Year 4) had his outline over the whole
++// track end, the doors inside it, and since he was drawn there the outline
++// took every tap on the doors: no way into the garage. Now a tap outside the
++// character's drawn box goes to any other object outlined there; only where
++// nothing else is does the character's own outline take it (Lupe's window).
++bool HotspotMan::outlineYields(int oid, const Common::Point &p, int setup) {
++	Actor *a = liveActor(oid);
++	if (!a || a->_screenBox.contains(p))
++		return false;
++	Common::Array<MouseHotspot> &hotspots = hotspotsOf(activeSet());
++	for (uint i = 0; i < hotspots.size(); i++) {
++		MouseHotspot &hs = hotspots[i];
++		int gid = hs._objId;
++		if (gid == oid || hs._setup != setup || hs._type >= 10 || hs._type == 3 || !hs._region.contains(p))
++			continue;
++		if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region))
++			continue;
++		Actor *b = liveActor(gid);
++		if (b && !b->_screenBox.contains(p))
++			continue;   // another character's outline beside it: no better
++		return true;
++	}
++	return false;
 +}
 +
 +// The forklift as drawn, more closely than its box: the outline of its body
@@ -870,7 +897,8 @@ index f6552fb..7033ca0 100644
 +		int gid = hs._objId;
 +		if (hs._setup != setup || hs._type >= 10 || hs._type == 3 || !hs._region.contains(p))
 +			continue;
-+		if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region))
++		if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region) ||
++		    outlineYields(gid, p, setup))
 +			continue;
 +		return gid;
 +	}
@@ -880,7 +908,7 @@ index f6552fb..7033ca0 100644
  void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, bool doubleClick) {
  	if (!g_grim->getCurrSet())
  		return;
-@@ -443,30 +650,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -443,30 +678,41 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory && button > 0) {
@@ -940,23 +968,24 @@ index f6552fb..7033ca0 100644
  	for (uint i = 0; i < hotspots.size(); i++) {
  		MouseHotspot &hs = hotspots[i];
  		if (_ctrlMode == Options && hs._region.contains(cursor)) {
-@@ -497,8 +715,9 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
+@@ -497,8 +743,10 @@ void HotspotMan::event(const Common::Point &cursor, const Common::Event &ev, boo
  			if ((_ctrlMode != Normal && _ctrlMode != NoWalk) ||
  			    hs._type >= 10 || hs._type == 3 || button == 0)
  				continue;
 -			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active)
-+			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region))
++			if (gid <= 0 || gid >= (int)_hotobject.size() || !_hotobject[gid]._active || actorAway(gid, hs._region) ||
++			    outlineYields(gid, cursor, setup))
  				continue;
 +			debug(1, "Grim Mouse: tap on %s", _hotobject[gid]._desc.c_str());
  			LuaObjects objects;
  			objects.add(button);
  			objects.add(gid);
-@@ -587,9 +806,12 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -587,9 +835,12 @@ void HotspotMan::hover(const Common::Point &pos) {
  				continue;
  			int type = hotspots[i]._type;
  			if (_ctrlMode == Normal || _ctrlMode == NoWalk) {
 -				if (type >= 10)
-+				if (type >= 10 || actorAway(oid, hotspots[i]._region))
++				if (type >= 10 || actorAway(oid, hotspots[i]._region) || outlineYields(oid, pos, setup))
  					continue;
 -				cursor->setCursor((type == 2 || type == 3) ? 2 : 1);
 +				// Manny finds, the cursor confirms (Simon, 14 Nov 2026): lit only
@@ -966,7 +995,7 @@ index f6552fb..7033ca0 100644
  				const Common::String &desc = (oid > 0 && !_hotobject[oid]._desc.empty()) ? _hotobject[oid]._desc : hotspots[i]._desc;
  				_hoverName = (desc == "_") ? Common::String() : desc;
  			} else if (_ctrlMode == Dialog) {
-@@ -609,6 +831,31 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -609,6 +860,31 @@ void HotspotMan::hover(const Common::Point &pos) {
  		}
  	}
  
@@ -998,7 +1027,7 @@ index f6552fb..7033ca0 100644
  	if (_ctrlMode == Dialog) {
  		int dialog = inBox(pos), click = 0;
  		LuaObjects objects;
-@@ -616,16 +863,9 @@ void HotspotMan::hover(const Common::Point &pos) {
+@@ -616,16 +892,9 @@ void HotspotMan::hover(const Common::Point &pos) {
  		objects.add(click);
  		LuaBase::instance()->callback("dialogSelect", objects);
  	} else if (_ctrlMode == Inventory) {
@@ -1018,7 +1047,7 @@ index f6552fb..7033ca0 100644
  	} else if (_ctrlMode == Options) {
  		LuaObjects objects;
  		objects.add(activeSet().c_str());
-@@ -645,6 +885,42 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
+@@ -645,6 +914,52 @@ Common::Point HotspotMan::mannyPos2D(float zOffset) {
  	return Common::Point(x, y);
  }
  
@@ -1052,16 +1081,26 @@ index f6552fb..7033ca0 100644
 +	}
 +	if (!on)
 +		return false;
++	// An outlined thing nearer the camera than Manny wins. Nearer is measured
++	// with Manny taken at the thing's own height (PointyClicky Edition, 16 Nov
++	// 2026, the proof playthrough, Year 4): from a high camera a door's point,
++	// half way up the door, is nearer the lens than Manny's feet standing in
++	// front of it, so in the florist's doorway (fi) every tap on him was the
++	// door and the coat could not be opened there.
 +	int ooid = outlineObjectAt(p, g_grim->getCurrSet()->getSetup());
-+	if (ooid > 0 && cameraDepth(_hotobject[ooid]._pos) < cameraDepth(manny->getPos()))
-+		return false;
++	if (ooid > 0) {
++		Math::Vector3d at = manny->getPos();
++		at.z() = _hotobject[ooid]._pos.z();
++		if (cameraDepth(_hotobject[ooid]._pos) < cameraDepth(at))
++			return false;
++	}
 +	return true;
 +}
 +
  void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing) {
  	Math::Vector3d r0, r1;
  	if (!raycast(cursor.x, cursor.y, r0, r1))
-@@ -679,6 +955,7 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -679,6 +994,7 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  			if (!sector->raycast(r0, r1, v))
  				continue;
  			if (sector->isPointInSector(v)) {
@@ -1069,7 +1108,7 @@ index f6552fb..7033ca0 100644
  				LuaObjects objects;
  				objects.add(button);
  				objects.add(doubleClick ? 1 : 0);
-@@ -698,6 +975,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
+@@ -698,6 +1014,8 @@ void HotspotMan::freeClick(const Common::Point &cursor, int button, bool doubleC
  }
  
  bool HotspotMan::restoreState(SaveGame *savedState) {
@@ -1078,7 +1117,7 @@ index f6552fb..7033ca0 100644
  	// A save made without Grim Mouse has no HOTM section: start from the
  	// hotspot files and let the scripts register their objects again.
  	if (!savedState->hasSection('HOTM')) {
-@@ -758,6 +1037,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
+@@ -758,6 +1076,17 @@ bool HotspotMan::restoreState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -1096,7 +1135,7 @@ index f6552fb..7033ca0 100644
  	_icons.clear();
  	_activeHS = nullptr;
  	loadFlashBitmaps();
-@@ -812,6 +1102,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
+@@ -812,6 +1141,16 @@ void HotspotMan::saveState(SaveGame *savedState) {
  		}
  	}
  	savedState->endSection();
@@ -1113,7 +1152,7 @@ index f6552fb..7033ca0 100644
  }
  
  int HotspotMan::inBox(const Common::Point &p) {
-@@ -919,4 +1219,1226 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
+@@ -919,4 +1258,1226 @@ void HotspotMan::addInventory(const Common::String &id, const Common::String &pi
  	_inventory.push_back(it);
  }
  
@@ -2341,7 +2380,7 @@ index f6552fb..7033ca0 100644
 +
  } // end of namespace Grim
 diff --git a/engines/grim/hotspotman.h b/engines/grim/hotspotman.h
-index 9d342ba..1f68626 100644
+index 9d342ba..732f227 100644
 --- a/engines/grim/hotspotman.h
 +++ b/engines/grim/hotspotman.h
 @@ -34,6 +34,7 @@
@@ -2428,13 +2467,14 @@ index 9d342ba..1f68626 100644
  
  	/** The name of the hotspot under the cursor ("" if none): for the host's label. */
  	const Common::String &getHoverName() const { return _hoverName; }
-@@ -127,10 +176,74 @@ protected:
+@@ -127,10 +176,75 @@ protected:
  	int inBox(const Common::Point &p);
  	void freeClick(const Common::Point &cursor, int button, bool doubleClick, bool climbing);
  	void loadFlashBitmaps();
 +	void refreshOutlines();
 +	Actor *liveActor(int oid);
 +	bool actorAway(int oid, const HotPolygon &region);
++	bool outlineYields(int oid, const Common::Point &p, int setup);
 +	int actorAt(const Common::Point &p, float &depth);
 +	int outlineObjectAt(const Common::Point &p, int setup);
  	void restoreCursor();
